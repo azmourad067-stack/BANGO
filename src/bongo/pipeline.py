@@ -222,10 +222,23 @@ def load_mouth_cues(folder: Path, lines: list[LineAudio]) -> dict[str, list[dict
     return cues
 
 
+def chant_durations(root: Path) -> dict[str, float]:
+    from bongo.audio_mix import audio_duration, find_audio
+
+    result = {}
+    for name in ("hello", "goodbye"):
+        path = find_audio(root, "chants", name)
+        if path:
+            result[name] = audio_duration(path)
+    return result
+
+
 def make_timeline(folder: Path, script: Script, episode: Episode, config: Config, lines: list[LineAudio]) -> dict:
     from bongo.timeline import build_timeline, save_timeline
 
-    timeline = build_timeline(script, episode, config, [l.duration_s for l in lines], load_mouth_cues(folder, lines))
+    root = folder.parent.parent
+    timeline = build_timeline(script, episode, config, [l.duration_s for l in lines], load_mouth_cues(folder, lines),
+                              chants=chant_durations(root))
     save_timeline(timeline, folder / "timeline.json")
     return timeline
 
@@ -275,7 +288,7 @@ def build_episode_audio(
     rhubarb = None if rhubarb_runner else find_rhubarb(root)
 
     log(f"Épisode {episode_id} — {', '.join(episode.new_words) or 'révision'}")
-    log("1/6 Scénario")
+    log("1/10 Scénario")
     script, check, info = obtain_script(
         root, episode, curriculum, config, rules, folder, script_file, new_script, llm_factory, log
     )
@@ -284,7 +297,7 @@ def build_episode_audio(
     if check.status == "error":
         return finish()
 
-    log("2/6 Voix")
+    log("2/10 Voix")
     pronunciations = load_pronunciations(root)
     audio_dir = folder / "audio"
     variants_path = audio_dir / "variants.json"
@@ -307,17 +320,17 @@ def build_episode_audio(
 
     lines = synthesize()
 
-    log("3/6 Contrôle de prononciation")
+    log("3/10 Contrôle de prononciation")
     if transcriber is None:
         transcriber = load_whisper(config.asr.model, config.asr.device, config.asr.compute_type)
     lines = run_asr(lines, script, episode, config, transcriber, folder, synthesize, report, log)
 
-    log("4/6 Bouches")
+    log("4/10 Bouches")
     kwargs = {"runner": rhubarb_runner} if rhubarb_runner else {"runner": run_rhubarb}
     lipsync_lines(lines, folder / "lipsync", rhubarb or Path("rhubarb"), log=log, **kwargs)
     report.steps["lipsync"] = {"lines": len(lines)}
 
-    log("5/6 Minutage")
+    log("5/10 Minutage")
     from bongo.timeline import check_timeline
 
     timeline = make_timeline(folder, script, episode, config, lines)
@@ -331,16 +344,49 @@ def build_episode_audio(
             f"durée réelle {report.duration_s:.0f} s, hors de l'intervalle prévu ({low:g} à {high:g} s)"))
 
     if render and report.status != "error":
-        log("6/6 Image")
-        from bongo.render import mux_preview, render_video
-
-        video = render_video(root, timeline, config, folder / "video.mp4", workers=workers, log=log)
-        mux_preview(video, voice, folder / f"ep{episode_id:03d}_apercu.mp4")
-        report.steps["render"] = {"video": "video.mp4", "preview": f"ep{episode_id:03d}_apercu.mp4"}
+        finish_episode(root, episode, script, config, timeline, voice, folder, report, workers, log)
 
     if report.status != "error":
         update_quest_history(root, episode_id, script.title, script.quest_summary)
-    return finish()
+    finish()
+    if render:
+        from bongo.report import publish_to_week, week_dir, week_start_for, write_week_report
+
+        start = week_start_for(curriculum, episode)
+        publish_to_week(root, episode_id, report.status, week_dir(root, start))
+        report.steps["report"] = str(write_week_report(root, curriculum, start))
+        finish()
+    return report
+
+
+def finish_episode(root, episode, script, config, timeline, voice, folder, report, workers, log) -> None:
+    """Image, son mixé, sous-titres, miniature, métadonnées."""
+    from bongo.audio_mix import master, mix_tracks
+    from bongo.metadata import build_metadata, write_metadata
+    from bongo.render import render_video
+    from bongo.subtitles import write_srt
+    from bongo.thumbnail import make_thumbnail
+
+    stem = f"ep{episode.id:03d}"
+    log("6/10 Image")
+    video = render_video(root, timeline, config, folder / "video.mp4", workers=workers, log=log)
+    log("7/10 Son : musique, bruitages, volume")
+    mix, warnings = mix_tracks(root, timeline, voice, config.audio.music_db_under_voice, log=log)
+    for w in warnings:
+        report.issues.append(Issue(WARNING, "audio_asset", w))
+    loud = master(mix, video, folder / f"{stem}.mp4", config.audio.loudness_lufs, folder)
+    report.steps["mix"] = loud
+    if abs(loud["integrated_lufs"] - config.audio.loudness_lufs) > 1.0:
+        report.issues.append(Issue(WARNING, "loudness",
+            f"volume final {loud['integrated_lufs']:.1f} LUFS au lieu de {config.audio.loudness_lufs:g}"))
+    log("8/10 Sous-titres")
+    write_srt(timeline, folder / f"{stem}.srt")
+    log("9/10 Miniature")
+    make_thumbnail(root, episode, script.title, folder / "thumb.png")
+    log("10/10 Métadonnées et rapport")
+    write_metadata(build_metadata(episode, script.title, script.quest_summary, config, f"{stem}.srt"),
+                   folder / "metadata.json")
+    report.steps["render"] = {"video": f"{stem}.mp4", "subtitles": f"{stem}.srt", "thumbnail": "thumb.png"}
 
 
 # --- Rendu seul -------------------------------------------------------------------------------------
@@ -389,7 +435,7 @@ def render_episode(
         log("  Voix absentes : maquette muette avec durées estimées et bouches fermées.")
         qa = config.qa
         durations = [max(qa.estimate_min_line_s, len(l.text.split()) / qa.estimate_words_per_s) for l in flat]
-        timeline = build_timeline(script, episode, config, durations)
+        timeline = build_timeline(script, episode, config, durations, chants=chant_durations(root))
         save_timeline(timeline, folder / "timeline.json")
     if still_at is not None:
         out = render_still(root, timeline, config, still_at, folder / f"image_{still_at:g}s.png")

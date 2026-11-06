@@ -276,6 +276,7 @@ def synthesize_script(
                 write_wav(wav, synthesize_line(spoken, vc.voice, vc.speed, synth, variant))
                 manifest[lid] = key
                 manifest_path.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
-            txt.write_text(line.text + "\n", encoding="utf-8")
+            if not txt.is_file() or txt.read_text(encoding="utf-8") != line.text + "\n":
+                txt.write_text(line.text + "\n", encoding="utf-8")  # inchangé = Rhubarb pas relancé
             results.append(LineAudio(lid, scene.id, i, line.speaker, line.text, wav, txt, wav_duration(wav), variant))
     return results

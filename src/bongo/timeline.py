@@ -20,6 +20,7 @@ from bongo.schema import BONGO, Script
 LEAD_IN_S = 0.6        # avant la première réplique (fondu depuis le noir)
 TAIL_S = 1.5           # après la dernière réplique (fondu vers le noir)
 EDGE_FADE_S = 0.5
+CHANT_GAP_S = 0.5      # silence entre une comptine et les répliques
 CARD_S = 2.5
 CARD_FADE_S = 0.3
 BLINK_S = 0.25
@@ -42,17 +43,23 @@ def build_timeline(
     config: Config,
     line_durations: list[float],
     mouth_cues: dict[str, list[dict]] | None = None,
+    chants: dict[str, float] | None = None,
 ) -> dict:
-    """Calcule le minutage complet. `line_durations` : durée de chaque réplique (dans l'ordre)."""
+    """Calcule le minutage complet. `line_durations` : durée de chaque réplique (dans l'ordre).
+    `chants` : durée des comptines d'accueil (« hello ») et d'au revoir (« goodbye »), si elles existent."""
     qa = config.qa
     lines_flat = [(scene, line) for scene in script.scenes for line in scene.lines]
     if len(line_durations) != len(lines_flat):
         raise ValueError("une durée par réplique est attendue")
     mouth_cues = mouth_cues or {}
     rng = random.Random(episode_seed(episode.id))
+    chants = chants or {}
+    chant_marks = []
+    if chants.get("hello"):
+        chant_marks.append({"name": "hello", "start": LEAD_IN_S, "end": round(LEAD_IN_S + chants["hello"], 3)})
 
     scenes, lines, poses, cards, looks, brows, motions = [], [], [], [], [], [], []
-    t = LEAD_IN_S
+    t = LEAD_IN_S + (chants.get("hello", 0) + CHANT_GAP_S if chants.get("hello") else 0)
     n = 0
     for s_idx, scene in enumerate(script.scenes):
         scene_start = 0.0 if s_idx == 0 else t
@@ -93,6 +100,11 @@ def build_timeline(
             if not last_overall:
                 t += qa.gap_between_lines_s
         if s_idx == len(script.scenes) - 1:
+            if chants.get("goodbye"):
+                start_chant = t + CHANT_GAP_S
+                chant_marks.append({"name": "goodbye", "start": round(start_chant, 3),
+                                    "end": round(start_chant + chants["goodbye"], 3)})
+                t = start_chant + chants["goodbye"]
             t += TAIL_S
         if t - scene_start < qa.min_shot_s:  # aucun plan de moins de 3 s
             t = scene_start + qa.min_shot_s
@@ -146,6 +158,7 @@ def build_timeline(
         "looks": looks,
         "brows": brows,
         "blinks": blinks,
+        "chants": chant_marks,
     }
 
 

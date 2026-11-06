@@ -13,6 +13,7 @@ Une ligne par élément. Pour les musiques et bruitages : source, licence et dat
 | Pillow | Image | MIT-CMU (HPND) | Oui | |
 | numpy | Calcul | BSD-3-Clause | Oui | |
 | Jinja2 | Rapport HTML | BSD-3-Clause | Oui | |
+| tzdata | Fuseaux horaires (Windows) | Apache 2.0 | Oui | |
 | pytest | Tests | MIT | Oui | Développement uniquement |
 | Kokoro (`kokoro`) | Voix | Apache 2.0 | Oui | Python 3.10 à 3.12 |
 | Modèle Kokoro-82M (hexgrad) | Voix | Apache 2.0 | Oui | Téléchargé depuis Hugging Face |
@@ -37,6 +38,7 @@ Une ligne par élément. Pour les musiques et bruitages : source, licence et dat
 | Élément | Auteur / outil | Licence | Date |
 | --- | --- | --- | --- |
 | Assets provisoires (`python -m bongo placeholders`) | Générés par le projet | Propriété du projet | À remplacer avant publication |
+| Musiques et bruitages provisoires (`assets/audio/*/…wav` créés par `placeholders`) | Synthèse simple par le projet (aucune IA) | Propriété du projet | À remplacer par la bibliothèque audio YouTube et des bruitages CC0 |
 
 ## Musiques
 

@@ -87,10 +87,11 @@ def cmd_build_episode(args: argparse.Namespace) -> int:
     print()
     print(report.summary_fr())
     print(f"\nFichiers : {folder}")
-    preview = folder / f"ep{args.episode:03d}_apercu.mp4"
-    if preview.is_file() and report.status != "error":
-        print(f"Regarde l'aperçu (voix seules, sans musique) : {preview}")
-    print("(Musique, bruitages, sous-titres, miniature et métadonnées arrivent à l'étape 4.)")
+    final = folder / f"ep{args.episode:03d}.mp4"
+    if final.is_file() and report.status != "error":
+        print(f"Vidéo : {final}")
+    if "report" in report.steps:
+        print(f"Rapport de la semaine (métadonnées à copier dans YouTube Studio) :\n  {report.steps['report']}")
     return 1 if report.status == "error" else 0
 
 
@@ -101,6 +102,21 @@ def cmd_render(args: argparse.Namespace) -> int:
     script_file = Path(args.script_file) if args.script_file else None
     out = render_episode(root, args.episode, script_file=script_file, max_seconds=args.seconds, still_at=args.image)
     print(f"Terminé : {out}")
+    return 0
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    import datetime as dt
+
+    from bongo.curriculum import load_curriculum
+    from bongo.report import write_week_report
+
+    try:
+        start = dt.date.fromisoformat(args.start)
+    except ValueError:
+        raise BongoError(f"Date invalide : {args.start} (format attendu : 2026-12-01)") from None
+    root = _root()
+    print(f"Rapport : {write_week_report(root, load_curriculum(root), start)}")
     return 0
 
 
@@ -167,6 +183,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seconds", type=float, default=None, help="ne rendre que les N premières secondes")
     p.add_argument("--image", type=float, default=None, help="ne rendre qu'une image, à cet instant (en secondes)")
     p.set_defaults(func=cmd_render)
+
+    p = sub.add_parser("report", help="refait le rapport d'une semaine")
+    p.add_argument("--start", required=True, help="premier jour de la semaine, ex. 2026-12-01")
+    p.set_defaults(func=cmd_report)
 
     p = sub.add_parser("pronounce", help="fait dire chaque mot du programme par la voix de Bongo")
     p.add_argument("--words", default=None, help="seulement ces mots (séparés par des virgules)")

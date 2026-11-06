@@ -216,6 +216,17 @@ def run_checks(root: Path) -> list[Check]:
                           "Lance `python -m bongo placeholders` pour des assets provisoires, ou ajoute les dessins."))
             else:
                 add(Check(f"Assets « {biome} »", OK, "complets"))
+        from bongo.audio_mix import find_audio, find_music
+
+        no_music = [b for b in dict.fromkeys(e.biome for e in curriculum.episodes) if not find_music(root, b)]
+        no_sfx = [n for n in ("card", "jump", "drum") if not find_audio(root, "sfx", n)]
+        if no_music or no_sfx:
+            add(Check("Musique et bruitages", WARN,
+                      "manquants : " + ", ".join([f"musique {b}" for b in no_music] + [f"bruitage {n}" for n in no_sfx]),
+                      "Lance `python -m bongo placeholders` (sons provisoires) ou ajoute les fichiers dans assets/audio/ "
+                      "(musique : bibliothèque audio YouTube ; bruitages : CC0) et note-les dans LICENSES.md."))
+        else:
+            add(Check("Musique et bruitages", OK, "présents"))
         rig_problems = []
         for name in ["bongo", *curriculum.all_friends()]:
             if (root / "assets" / "characters" / name).is_dir():

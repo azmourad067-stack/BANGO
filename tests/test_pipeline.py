@@ -118,8 +118,32 @@ def test_full_build_with_video(project):
     generate_placeholders(project, load_curriculum(project))
     report = _build(project, script_file=EXAMPLE, render=True, workers=2)
     folder = episode_dir(project, 3)
-    preview = folder / "ep003_apercu.mp4"
-    assert report.steps["render"]["preview"] == preview.name and preview.is_file()
-    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width",
-                            "-of", "csv=p=0", str(preview)], capture_output=True, text=True).stdout
-    assert "video" in probe and "audio" in probe and "192" in probe
+    final = folder / "ep003.mp4"
+    assert report.steps["render"]["video"] == final.name and final.is_file()
+    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name,width,sample_rate",
+                            "-of", "csv=p=0", str(final)], capture_output=True, text=True).stdout
+    assert "h264" in probe and "aac" in probe and "192" in probe and "48000" in probe
+    assert abs(report.steps["mix"]["integrated_lufs"] + 14) <= 1.0
+    assert (folder / "ep003.srt").read_text(encoding="utf-8").startswith("1\n00:00:00,600 --> ")
+    meta = json.loads((folder / "metadata.json").read_text(encoding="utf-8"))
+    assert meta["title"] == "Frog and Leaf — Learn English with Bongo the Gorilla"
+    assert meta["publish_at_local"] == "2026-12-03T13:00:00+01:00"
+    from PIL import Image
+
+    assert Image.open(folder / "thumb.png").size == (1280, 720)
+    week = project / "out" / "week_2026-12-01"
+    assert (week / "ep003.mp4").is_file() and (week / "ep003_thumb.png").is_file()
+    html = (week / "report.html").read_text(encoding="utf-8")
+    assert "Frog and Leaf" in html and "Semaines 1 à 3" in html
+
+
+def test_rebuild_does_not_rerun_rhubarb(project):
+    _build(project, script_file=EXAMPLE)
+    calls = []
+
+    def counting(*args):
+        calls.append(args)
+        return fake_rhubarb(*args)
+
+    _build(project, rhubarb_runner=counting)
+    assert calls == []
