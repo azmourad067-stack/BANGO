@@ -9,10 +9,7 @@ from pathlib import Path
 
 from bongo.errors import BongoError
 
-NOT_YET = {
-    "build-week": 5,
-    "compile": 5,
-}
+NOT_YET: dict[str, int] = {}
 
 
 def _root() -> Path:
@@ -105,16 +102,68 @@ def cmd_render(args: argparse.Namespace) -> int:
     return 0
 
 
+def _date(text: str):
+    import datetime as dt
+
+    try:
+        return dt.date.fromisoformat(text)
+    except ValueError:
+        raise BongoError(f"Date invalide : {text} (format attendu : 2026-12-01)") from None
+
+
+def cmd_build_week(args: argparse.Namespace) -> int:
+    from bongo.week import build_week, speaking_rate
+
+    root = _root()
+    results = build_week(root, _date(args.start), force=args.force)
+    print("\nBilan de la semaine :")
+    labels = {"ok": "OK", "warning": "OK avec avertissements", "error": "BLOQUÉ", "non fabriqué": "non fabriqué"}
+    for ep_id, status in results.items():
+        print(f"  Épisode {ep_id:>2} : {labels.get(status, status)}")
+    rate = speaking_rate(root, list(results))
+    if rate:
+        from bongo.config import load_config
+
+        est = load_config(root).qa.estimate_words_per_s
+        if abs(rate - est) / est > 0.15:
+            print(f"\nÀ noter : les voix disent {rate:.2f} mots/s ; config.yaml estime {est:g} "
+                  f"(qa: estimate_words_per_s). Mets {rate:.2f} pour des durées estimées plus justes.")
+    from bongo.report import week_dir
+
+    print(f"\nOuvre le rapport : {week_dir(root, _date(args.start)) / 'report.html'}")
+    return 1 if any(s in ("error", "non fabriqué") for s in results.values()) else 0
+
+
+def cmd_compile(args: argparse.Namespace) -> int:
+    from bongo.compile import compile_range, default_title
+    from bongo.curriculum import load_curriculum
+
+    root = _root()
+    if args.week:
+        from bongo.week import check_week_start
+
+        curriculum = load_curriculum(root)
+        start = _date(args.week)
+        check_week_start(curriculum, start)
+        eps = curriculum.week(start)
+        first, last = eps[0].id, eps[-1].id
+    elif args.from_ is not None and args.to is not None:
+        first, last = args.from_, args.to
+    else:
+        raise BongoError("Indique la semaine (--week 2026-12-01) ou les épisodes (--from 1 --to 7).")
+    title = args.title or default_title(load_curriculum(root), first, last)
+    out = compile_range(root, first, last, title)
+    print(f"Compilation : {out}\nMiniature, sous-titres et métadonnées dans le même dossier.")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     import datetime as dt
 
     from bongo.curriculum import load_curriculum
     from bongo.report import write_week_report
 
-    try:
-        start = dt.date.fromisoformat(args.start)
-    except ValueError:
-        raise BongoError(f"Date invalide : {args.start} (format attendu : 2026-12-01)") from None
+    start = _date(args.start)
     root = _root()
     print(f"Rapport : {write_week_report(root, load_curriculum(root), start)}")
     return 0
@@ -183,6 +232,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seconds", type=float, default=None, help="ne rendre que les N premières secondes")
     p.add_argument("--image", type=float, default=None, help="ne rendre qu'une image, à cet instant (en secondes)")
     p.set_defaults(func=cmd_render)
+
+    p = sub.add_parser("build-week", help="fabrique les 7 épisodes d'une semaine et le rapport")
+    p.add_argument("--start", required=True, help="premier jour de la semaine, ex. 2026-12-01")
+    p.add_argument("--force", action="store_true", help="refaire aussi les épisodes déjà terminés")
+    p.set_defaults(func=cmd_build_week)
+
+    p = sub.add_parser("compile", help="fabrique une compilation d'épisodes")
+    p.add_argument("--week", default=None, help="toute une semaine, ex. 2026-12-01")
+    p.add_argument("--from", dest="from_", type=int, default=None, help="premier épisode")
+    p.add_argument("--to", type=int, default=None, help="dernier épisode")
+    p.add_argument("--title", default=None, help="titre (par défaut : « Bongo's Week in the Jungle », selon le milieu)")
+    p.set_defaults(func=cmd_compile)
 
     p = sub.add_parser("report", help="refait le rapport d'une semaine")
     p.add_argument("--start", required=True, help="premier jour de la semaine, ex. 2026-12-01")

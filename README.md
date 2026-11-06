@@ -16,6 +16,36 @@ Les règles du projet sont dans [CLAUDE.md](CLAUDE.md) ; le programme de la sais
 6. **Clé Gemini** (gratuite) : https://aistudio.google.com/apikey — ouvrir le fichier `.env` avec le Bloc-notes
    et coller la clé après `GEMINI_API_KEY=`.
 
+## Produire une semaine (chaque samedi)
+
+Double-cliquer sur `fabriquer_semaine.bat` et taper la date du premier jour de la semaine
+(2026-12-01, 2026-12-08, 2026-12-15 ou 2026-12-22). Il fabrique les 7 épisodes, le rapport, puis la compilation.
+
+Ou dans le terminal :
+
+```
+python -m bongo build-week --start 2026-12-01
+python -m bongo compile --week 2026-12-01
+```
+
+- Compter environ 10 à 20 minutes par épisode selon le PC, donc 1 h 30 à 2 h 30 pour la semaine : lancer et laisser tourner.
+- Ensuite, ouvrir `out\week_2026-12-01\report.html` : regarder les vidéos indiquées, puis programmer chaque
+  vidéo dans YouTube Studio en copiant les champs avec les boutons « Copier ».
+- La compilation (vidéo, miniature, sous-titres, `metadata.json` avec les chapitres) est dans
+  `out\compilations\ep001-007\`. Elle sort le lendemain du dernier épisode de la semaine.
+
+### Si quelque chose s'arrête
+
+- **Relancer la même commande** : les épisodes déjà terminés sont gardés, le travail fait dans un épisode
+  (scénario, voix, bouches) est réutilisé. `--force` refait tout.
+- **Quota Gemini épuisé** : les épisodes restants sont marqués « non fabriqué » ; relancer le lendemain.
+  Si Gemini n'atteint que sa limite par minute, le programme attend tout seul et réessaie.
+- **Un épisode bloqué** n'empêche pas les autres. Le rapport dit pourquoi ; le détail complet est dans
+  `out\week_...\journal.txt` (à joindre si tu demandes de l'aide).
+- **Scénario refusé 3 fois** : relancer `python -m bongo build-episode 5 --new-script`, ou écrire le
+  scénario à la main et le passer avec `--script-file`.
+- Une vidéo douteuse ? La remplacer par une vidéo de révision plutôt que la publier.
+
 ## Utilisation
 
 Ouvrir un terminal dans le dossier du projet, puis activer l'environnement :
@@ -39,13 +69,16 @@ Ouvrir un terminal dans le dossier du projet, puis activer l'environnement :
 | `python -m bongo build-episode 3 --no-video` | S'arrête au son (plus rapide) |
 | `python -m bongo render 3` | Refait seulement l'image (après avoir changé un dessin) : aperçu avec les voix seules |
 | `python -m bongo report --start 2026-12-01` | Refait le rapport de la semaine |
+| `python -m bongo build-week --start 2026-12-01` | Les 7 épisodes de la semaine et le rapport |
+| `python -m bongo compile --week 2026-12-01` | Compilation de la semaine (titre automatique selon le milieu) |
+| `python -m bongo compile --from 1 --to 7 --title "Bongo's Week in the Jungle"` | Compilation sur mesure |
 | `python -m bongo render 3 --image 40` | Une seule image, à la 40e seconde (pour vérifier un dessin) |
 | `python -m bongo render 3 --script-file content\examples\ep003_frog_leaf.json` | Maquette muette, sans les voix |
 | `python -m pytest` | Lance les tests |
 
 Résultat : `out\week_2026-12-01\` contient la vidéo, les sous-titres, la miniature et `report.html`,
 où l'on copie le titre, la description et les tags dans YouTube Studio. Un épisode bloqué par les
-contrôles n'y est pas copié. `build-week` et `compile` arrivent à l'étape 5.
+contrôles n'y est pas copié.
 
 Dans `episodes\ep003\` : `script.json` (scénario), `audio\` (une réplique = un WAV),
 `lipsync\` (bouches), `timeline.json` (minutage), `voice.wav` (voix placées), `video.mp4` (image seule),

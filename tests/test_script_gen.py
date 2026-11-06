@@ -78,3 +78,50 @@ def test_gemini_errors_in_french():
     assert "Clé Gemini refusée" in str(client._explain(_Err(400, "API key not valid")))
     assert "introuvable" in str(client._explain(_Err(404)))
     assert "indisponible" in str(client._explain(_Err(503)))
+
+
+def test_retry_delay():
+    from bongo.script_gen import retry_delay
+
+    assert retry_delay("429 RESOURCE_EXHAUSTED ... 'retryDelay': '37s'") == 39
+    assert retry_delay("429 Please retry in 12.5s.") == 14.5
+    assert retry_delay("429 quota GenerateRequestsPerDayPerProjectPerModel") is None
+    assert retry_delay("429 RESOURCE_EXHAUSTED") == 60
+
+
+def test_rate_limit_waits_then_succeeds():
+    calls, slept = [], []
+
+    class Resp:
+        text = "{}"
+
+    class Models:
+        def generate_content(self, **kw):
+            calls.append(kw)
+            if len(calls) < 3:
+                raise _Err(429, "RESOURCE_EXHAUSTED retryDelay: '5s'")
+            return Resp()
+
+    google = pytest.importorskip("google.genai")
+    client = GeminiClient.__new__(GeminiClient)
+    client._genai = google
+    client.client = type("C", (), {"models": Models()})()
+    client.model_name, client.temperature, client.seed = "m", 0.7, 1
+    client.sleep = slept.append
+    assert client.complete("sys", [("user", "hi")]) == "{}"
+    assert slept == [7, 7]
+
+
+def test_daily_quota_stops_immediately():
+    class Models:
+        def generate_content(self, **kw):
+            raise _Err(429, "RESOURCE_EXHAUSTED GenerateRequestsPerDay")
+
+    google = pytest.importorskip("google.genai")
+    client = GeminiClient.__new__(GeminiClient)
+    client._genai = google
+    client.client = type("C", (), {"models": Models()})()
+    client.model_name, client.temperature, client.seed = "m", 0.7, 1
+    client.sleep = lambda s: pytest.fail("ne doit pas attendre")
+    with pytest.raises(BongoError, match="Quota"):
+        client.complete("sys", [("user", "hi")])

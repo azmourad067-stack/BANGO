@@ -292,7 +292,28 @@ class FrameRenderer:
             lift = self._bounce(name, t) * BOUNCE_HEIGHT * img.height
             frame.paste(img, (round(x - fx), round(ground - fy - lift)), img)
         self._draw_cards(frame, t, scene)
+        if self.tl.get("title"):
+            self._draw_title(frame)
         return frame
+
+    def _draw_title(self, frame: Image.Image) -> None:
+        if not hasattr(self, "_title_layer"):
+            from bongo.thumbnail import _font
+
+            layer = Image.new("RGBA", (self.W, self.H), (0, 0, 0, 0))
+            d = ImageDraw.Draw(layer)
+            size = max(8, int(self.H * 0.11))
+            font = _font(self.root, size)
+            while size > 8:
+                font = _font(self.root, size)
+                box = d.textbbox((0, 0), self.tl["title"], font=font, stroke_width=size // 12)
+                if box[2] - box[0] <= self.W * 0.9:
+                    break
+                size = max(8, size - max(1, size // 20))
+            d.text((self.W / 2, self.H * 0.17), self.tl["title"], font=font, fill=(255, 255, 255, 255),
+                   anchor="mm", stroke_width=max(2, size // 12), stroke_fill=(45, 50, 70, 255))
+            self._title_layer = layer
+        frame.paste(self._title_layer, (0, 0), self._title_layer)
 
     # --- Cartes-mots ---
     def _card_panel(self, word: str) -> Image.Image:

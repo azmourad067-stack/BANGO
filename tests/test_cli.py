@@ -29,10 +29,12 @@ def test_outside_project(capsys, tmp_path, monkeypatch):
     assert "dossier du projet" in capsys.readouterr().err
 
 
-def test_later_steps_announced(capsys, root, monkeypatch):
+def test_build_week_bad_start(capsys, root, monkeypatch):
     monkeypatch.chdir(root)
-    assert main(["build-week", "--start", "2026-12-01"]) == 2
-    assert "étape 5" in capsys.readouterr().out
+    assert main(["build-week", "--start", "2026-12-02"]) == 1
+    err = capsys.readouterr().err
+    assert "2026-12-01" in err and "2026-12-08" in err
+    assert main(["build-week", "--start", "demain"]) == 1
 
 
 def test_placeholders_then_check_setup(capsys, project, monkeypatch):
@@ -51,3 +53,16 @@ def test_check_setup_reports_missing_assets(project):
     checks = {c.name: c for c in run_checks(project)}
     assert checks["Assets « jungle »"].status == MISSING
     assert "placeholders" in checks["Assets « jungle »"].fix
+
+
+def test_compile_arguments(capsys, root, monkeypatch):
+    from bongo.compile import default_title
+    from bongo.curriculum import load_curriculum
+
+    monkeypatch.chdir(root)
+    assert main(["compile"]) == 1
+    assert "--week" in capsys.readouterr().err
+    assert main(["compile", "--week", "2026-12-03"]) == 1
+    c = load_curriculum(root)
+    assert default_title(c, 1, 7) == "Bongo's Week in the Jungle"
+    assert default_title(c, 6, 8) == "Bongo's Adventures, Episodes 6 to 8"

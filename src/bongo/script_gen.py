@@ -180,7 +180,23 @@ def pick_flash_model(names: list[str]) -> str | None:
     return best[1] if best else None
 
 
+MAX_RATE_WAITS = 3
+MAX_WAIT_S = 90
+
+
+def retry_delay(text: str) -> float | None:
+    """Délai d'attente conseillé par Gemini pour une limite par minute ; None pour un quota journalier."""
+    if re.search(r"per ?day|PerDay|daily", text, re.IGNORECASE):
+        return None
+    m = re.search(r"retry(?:Delay)?['\"]?\s*[:=]?\s*['\"]?(\d+(?:\.\d+)?)s", text, re.IGNORECASE) or \
+        re.search(r"retry in (\d+(?:\.\d+)?)\s*s", text, re.IGNORECASE)
+    delay = float(m.group(1)) + 2 if m else 60.0
+    return delay if delay <= MAX_WAIT_S else None
+
+
 class GeminiClient:
+    sleep = staticmethod(__import__("time").sleep)
+
     def __init__(self, api_key: str, model: str, temperature: float, seed: int) -> None:
         try:
             from google import genai
@@ -241,12 +257,17 @@ class GeminiClient:
             seed=self.seed,
             response_mime_type="application/json",
         )
-        try:
-            response = self.client.models.generate_content(model=self.model_name, contents=contents, config=config)
-        except BongoError:
-            raise
-        except Exception as exc:
-            raise self._explain(exc) from None
+        for wait_round in range(MAX_RATE_WAITS + 1):
+            try:
+                response = self.client.models.generate_content(model=self.model_name, contents=contents, config=config)
+                break
+            except Exception as exc:
+                is_rate = getattr(exc, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(exc)
+                delay = retry_delay(str(exc)) if is_rate else None
+                if delay is None or wait_round == MAX_RATE_WAITS:
+                    raise self._explain(exc) from None
+                print(f"  Limite par minute de Gemini atteinte : nouvel essai dans {delay:.0f} s…")
+                self.sleep(delay)
         text = response.text or ""
         if not text.strip():
             raise BongoError("Gemini a renvoyé une réponse vide. Relance la commande.")
