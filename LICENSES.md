@@ -23,7 +23,7 @@ Une ligne par élément. Pour les musiques et bruitages : source, licence et dat
 | faster-whisper | Contrôle de prononciation | MIT | Oui | |
 | Modèle Whisper small.en (Systran/faster-whisper-small.en) | Contrôle | MIT | Oui | Conversion du modèle OpenAI Whisper (MIT) |
 | google-genai | SDK Gemini | Apache 2.0 | Oui | Palier gratuit : les requêtes peuvent servir à Google, aucune donnée personnelle |
-| Rhubarb Lip Sync | Bouches | MIT | Oui | À confirmer avec le fichier LICENSE.md livré dans l'archive Windows |
+| Rhubarb Lip Sync 1.14.0 | Bouches | MIT | Oui | Vérifié dans LICENSE.md de l'archive ; dépendances MIT/BSD/Boost (modèle CMU Sphinx : BSD) |
 | FFmpeg (build Windows) | Vidéo et audio | LGPL/GPL | Oui | Programme séparé, non redistribué |
 
 ## Polices

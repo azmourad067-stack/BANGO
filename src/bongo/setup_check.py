@@ -125,6 +125,11 @@ def run_checks(root: Path) -> list[Check]:
     try:
         curriculum = load_curriculum(root)
         add(Check("Programme", OK, f"{len(curriculum.episodes)} épisodes, {len(curriculum.all_words())} mots"))
+        if config is not None:
+            voiceless = [f for f in ["bongo", *curriculum.all_friends()] if f not in config.voices]
+            if voiceless:
+                add(Check("Voix des amis", MISSING, f"aucune voix pour : {', '.join(voiceless)}",
+                          "Ajoute-les dans config.yaml (rubrique voices), après écoute avec `python -m bongo voices`."))
     except BongoError as exc:
         add(Check("Programme", MISSING, str(exc), "Corrige content/curriculum.yaml."))
         curriculum = None

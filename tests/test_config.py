@@ -14,8 +14,10 @@ def test_config_values_match_claude_md(config):
     assert config.upload.enabled is False
 
 
-def test_voices_still_to_choose(config):
-    assert all(PLACEHOLDER in v.voice for v in config.voices.values())
+def test_every_character_has_a_voice(config, curriculum):
+    assert all(PLACEHOLDER not in v.voice for v in config.voices.values())
+    assert set(curriculum.all_friends()) | {"bongo"} <= set(config.voices)
+    assert config.voices["bongo"].voice.startswith("am_")
 
 
 def test_find_root_from_subfolder(root, monkeypatch):

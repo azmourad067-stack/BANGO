@@ -10,8 +10,6 @@ from pathlib import Path
 from bongo.errors import BongoError
 
 NOT_YET = {
-    "pronounce": 2,
-    "build-episode": 4,
     "build-week": 5,
     "compile": 5,
 }
@@ -78,6 +76,32 @@ def cmd_check_script(args: argparse.Namespace) -> int:
     return 1 if result.status == "error" else 0
 
 
+def cmd_build_episode(args: argparse.Namespace) -> int:
+    from bongo.pipeline import build_episode_audio, episode_dir
+
+    root = _root()
+    script_file = Path(args.script_file) if args.script_file else None
+    report = build_episode_audio(root, args.episode, script_file=script_file, new_script=args.new_script)
+    folder = episode_dir(root, args.episode)
+    print()
+    print(report.summary_fr())
+    print(f"\nFichiers : {folder}")
+    audio = folder / f"ep{args.episode:03d}_audio.wav"
+    if audio.is_file():
+        print(f"Écoute l'épisode en audio : {audio}")
+    print("(L'image et la vidéo arrivent aux étapes 3 et 4.)")
+    return 1 if report.status == "error" else 0
+
+
+def cmd_pronounce(args: argparse.Namespace) -> int:
+    from bongo.pipeline import pronounce_words
+
+    words = [w.strip().lower() for w in args.words.split(",")] if args.words else None
+    page = pronounce_words(_root(), words=words)
+    print(f"Terminé. Ouvre cette page pour écouter chaque mot :\n  {page}")
+    return 0
+
+
 def cmd_programme(args: argparse.Namespace) -> int:
     from bongo.curriculum import load_curriculum
 
@@ -118,6 +142,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--episode", type=int, default=None, help="numéro d'épisode (par défaut : celui du fichier)")
     p.add_argument("--json", default=None, help="enregistre le détail des contrôles dans ce fichier")
     p.set_defaults(func=cmd_check_script)
+
+    p = sub.add_parser("build-episode", help="fabrique un épisode (pour l'instant : scénario, voix, bouches, audio)")
+    p.add_argument("episode", type=int, help="numéro de l'épisode")
+    p.add_argument("--script-file", default=None, help="utiliser un scénario écrit à la main (mêmes contrôles)")
+    p.add_argument("--new-script", action="store_true", help="redemander un scénario à Gemini même s'il en existe un")
+    p.set_defaults(func=cmd_build_episode)
+
+    p = sub.add_parser("pronounce", help="fait dire chaque mot du programme par la voix de Bongo")
+    p.add_argument("--words", default=None, help="seulement ces mots (séparés par des virgules)")
+    p.set_defaults(func=cmd_pronounce)
 
     p = sub.add_parser("programme", help="affiche le programme de la saison")
     p.set_defaults(func=cmd_programme)

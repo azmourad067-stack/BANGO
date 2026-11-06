@@ -32,13 +32,28 @@ Ouvrir un terminal dans le dossier du projet, puis activer l'environnement :
 | `python -m bongo voices` | Fait dire « Hello, little explorer! » par les 20 voix américaines de Kokoro |
 | `python -m bongo voices --text "Boom, boom, boom!" --voices am_michael,am_adam` | Même chose, avec une autre phrase et quelques voix |
 | `python -m bongo check-script content\examples\ep003_frog_leaf.json` | Contrôle un scénario écrit à la main |
+| `python -m bongo pronounce` | Fait dire les 48 mots du programme par la voix de Bongo (page d'écoute avec les phonèmes) |
+| `python -m bongo build-episode 3` | Fabrique l'épisode 3 : scénario Gemini, voix, contrôle Whisper, bouches, audio complet |
+| `python -m bongo build-episode 3 --script-file content\examples\ep003_frog_leaf.json` | Même chose avec un scénario écrit à la main (sans Gemini) |
+| `python -m bongo build-episode 3 --new-script` | Redemande un scénario à Gemini (sinon le précédent est réutilisé) |
 | `python -m pytest` | Lance les tests |
 
-Les commandes `pronounce`, `build-episode`, `build-week` et `compile` arrivent aux étapes suivantes.
+Pour l'instant `build-episode` s'arrête à l'audio : écoute `episodes\ep003\ep003_audio.wav`.
+L'image et la vidéo arrivent aux étapes 3 et 4 ; `build-week` et `compile` à l'étape 5.
 
-## Choisir les voix
+Dans `episodes\ep003\` : `script.json` (scénario), `audio\` (une réplique = un WAV),
+`lipsync\` (bouches), `qa.json` (résultat des contrôles), `rejected\` (scénarios refusés par les contrôles).
+Relancer la commande réutilise tout ce qui est déjà fait.
 
-1. `python -m bongo voices` (le modèle se télécharge la première fois).
-2. Ouvrir la page indiquée (`out\voices\...\ecoute.html`) et écouter.
-3. Écrire les noms choisis dans `config.yaml`, rubrique `voices` (par exemple `voice: "am_michael"`).
-   Ces réglages ne changent plus ensuite : Bongo doit sonner pareil du 1er au 28 décembre.
+## Corriger une prononciation
+
+1. `python -m bongo pronounce`, puis ouvrir `out\pronounce\ecoute.html`.
+2. Pour un mot mal dit, copier ses phonèmes affichés, les corriger, et ajouter une ligne dans
+   `content\pronunciations.yaml`, par exemple `goodnight: "ɡʊdnˈIt"`.
+3. Relancer `python -m bongo pronounce --words goodnight` pour réécouter.
+
+## Voix
+
+Une voix est déjà choisie pour chaque personnage dans `config.yaml` (Bongo : `am_michael`).
+Pour les réécouter ou en essayer d'autres : `python -m bongo voices`, puis ouvrir `out\voices\...\ecoute.html`.
+Changer une voix uniquement avant le 1er décembre : ensuite, Bongo doit sonner pareil tous les jours.

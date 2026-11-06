@@ -55,6 +55,13 @@ class QAConfig(_Strict):
     quest_similarity_max: float = Field(gt=0, le=1)
 
 
+class ASRConfig(_Strict):
+    model: str = "small.en"
+    device: str = "cpu"
+    compute_type: str = "int8"
+    max_mismatch: float = Field(default=0.20, ge=0, le=1)
+
+
 class AudioConfig(_Strict):
     music_db_under_voice: float
     loudness_lufs: float
@@ -75,9 +82,20 @@ class Config(_Strict):
     voices: dict[str, VoiceConfig]
     llm: LLMConfig
     qa: QAConfig
+    asr: ASRConfig = ASRConfig()
     audio: AudioConfig
     publish: PublishConfig
     upload: UploadConfig
+
+
+def voice_for(config: "Config", speaker: str) -> VoiceConfig:
+    try:
+        return config.voices[speaker]
+    except KeyError:
+        raise BongoError(
+            f"Aucune voix pour « {speaker} » dans config.yaml (rubrique voices) : ajoute-la, "
+            "par exemple après écoute avec `python -m bongo voices`."
+        ) from None
 
 
 def find_root(start: Path | None = None) -> Path:

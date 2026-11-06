@@ -3,11 +3,25 @@
 video: {width: 1920, height: 1080, fps: 24}
 positions: {left: 0.25, center: 0.5, right: 0.75}   # fraction de la largeur
 voices:
-  bongo:    {voice: "A_CHOISIR", speed: 0.85}
-  parrot:   {voice: "A_CHOISIR", speed: 0.90}
-  frog:     {voice: "A_CHOISIR", speed: 0.90}
-  elephant: {voice: "A_CHOISIR", speed: 0.90}
-llm: {model: "A_CHOISIR_MODELE_FLASH_GRATUIT", temperature: 0.7, max_retries: 3}
+  # Choisies d'après les notes de qualité de Kokoro (VOICES.md) et le caractère de chaque personnage.
+  # FIGÉES dès la publication du premier épisode (1er décembre).
+  bongo:    {voice: "am_michael", speed: 0.85}   # masculine, grave et chaleureuse
+  parrot:   {voice: "af_bella",   speed: 0.90}   # vive, il répète tout
+  frog:     {voice: "am_puck",    speed: 0.90}   # joueur, saute partout
+  elephant: {voice: "af_heart",   speed: 0.90}   # grande et douce
+  owl:      {voice: "af_kore",    speed: 0.90}   # posée, éveillée la nuit
+  squirrel: {voice: "af_sky",     speed: 0.90}   # aiguë, va très vite
+  bear:     {voice: "am_fenrir",  speed: 0.90}   # grave, toujours sommeil
+  duck:     {voice: "af_aoede",   speed: 0.90}   # adore les éclaboussures
+  fish:     {voice: "af_nicole",  speed: 0.90}   # douce, timide
+  turtle:   {voice: "am_onyx",    speed: 0.90}   # grave, très lent
+  goat:     {voice: "af_alloy",   speed: 0.90}   # grimpe partout
+  eagle:    {voice: "af_sarah",   speed: 0.90}   # vole très haut
+  rabbit:   {voice: "af_nova",    speed: 0.90}   # court vite
+# model: "auto" = le modèle « Flash » gratuit le plus récent proposé par Google (choisi à chaque lancement).
+# On peut écrire un nom précis à la place (ex. "gemini-3.8-flash") pour le figer.
+llm: {model: "auto", temperature: 0.7, max_retries: 3}
+asr: {model: "small.en", device: "cpu", compute_type: "int8", max_mismatch: 0.20}
 qa:
   min_word_repeats: 8
   min_cards_per_word: 2
