@@ -1,0 +1,262 @@
+# Programme de la saison 1 — recopié de la bible de la chaîne.
+# Le modèle de langage met en scène ces mots ; il ne choisit jamais quoi enseigner.
+#
+# À VALIDER : la bible ne fixe ni les décors de chaque épisode ni le geste à mimer.
+# Les champs `backgrounds` et `action` ci-dessous sont des propositions.
+# Décors par milieu : nest (tous) ; jungle : clearing, big_tree ; forest : undergrowth, forest_night ;
+# river : riverbank, river_rocks ; mountain : rocky_slope, snowy_peak.
+season: 1
+episodes:
+  - id: 1
+    date: 2026-12-01
+    type: lesson
+    biome: jungle
+    backgrounds: [nest, clearing]
+    new_words: [hello, gorilla]
+    review_words: []
+    friends: [parrot]
+    action: wave
+    note: "Bongo seul, Parrot à la fin"
+  - id: 2
+    date: 2026-12-02
+    type: lesson
+    biome: jungle
+    backgrounds: [nest, big_tree]
+    new_words: [parrot, tree]
+    review_words: [gorilla]
+    friends: [parrot]
+    action: flap
+  - id: 3
+    date: 2026-12-03
+    type: lesson
+    biome: jungle
+    backgrounds: [nest, clearing]
+    new_words: [frog, leaf]
+    review_words: [parrot]
+    friends: [frog]
+    action: jump
+  - id: 4
+    date: 2026-12-04
+    type: lesson
+    biome: jungle
+    backgrounds: [nest, clearing]
+    new_words: [elephant, big]
+    review_words: [frog]
+    friends: [elephant]
+    action: stomp
+  - id: 5
+    date: 2026-12-05
+    type: lesson
+    biome: jungle
+    backgrounds: [nest, big_tree]
+    new_words: [banana, small]
+    review_words: [big]
+    friends: [parrot]
+    action: crouch
+  - id: 6
+    date: 2026-12-06
+    type: lesson
+    biome: jungle
+    backgrounds: [nest, clearing]
+    new_words: [flower, friend]
+    review_words: [tree]
+    friends: [frog, elephant]
+    action: sniff
+  - id: 7
+    date: 2026-12-07
+    type: review
+    biome: jungle
+    backgrounds: [nest, big_tree]
+    review_words: [hello, gorilla, parrot, tree, frog, leaf, elephant, big, banana, small, flower, friend]
+    friends: [parrot, frog, elephant]
+    action: drum
+    note: "Révision de la jungle"
+  - id: 8
+    date: 2026-12-08
+    type: lesson
+    biome: forest
+    backgrounds: [nest, undergrowth]
+    new_words: [owl, green]
+    review_words: [leaf]
+    friends: [owl]
+    action: blink
+  - id: 9
+    date: 2026-12-09
+    type: lesson
+    biome: forest
+    backgrounds: [nest, undergrowth]
+    new_words: [apple, red]
+    review_words: [banana]
+    friends: [owl]
+    action: reach
+  - id: 10
+    date: 2026-12-10
+    type: lesson
+    biome: forest
+    backgrounds: [nest, undergrowth]
+    new_words: [squirrel, yellow]
+    review_words: [red]
+    friends: [squirrel]
+    action: wiggle
+  - id: 11
+    date: 2026-12-11
+    type: lesson
+    biome: forest
+    backgrounds: [nest, undergrowth]
+    new_words: [bear, blue]
+    review_words: [big]
+    friends: [bear]
+    action: yawn
+  - id: 12
+    date: 2026-12-12
+    type: lesson
+    biome: forest
+    backgrounds: [nest, undergrowth]
+    new_words: [rainbow, color]
+    review_words: [red, yellow, green, blue]
+    friends: [squirrel, bear]
+    action: clap
+  - id: 13
+    date: 2026-12-13
+    type: lesson
+    biome: forest
+    backgrounds: [nest, forest_night]
+    new_words: [moon, night]
+    review_words: [flower]
+    friends: [owl]
+    action: stretch
+  - id: 14
+    date: 2026-12-14
+    type: review
+    biome: forest
+    backgrounds: [nest, undergrowth, forest_night]
+    review_words: [owl, green, apple, red, squirrel, yellow, bear, blue, rainbow, color, moon, night, friend]
+    friends: [owl, squirrel, bear]
+    action: drum
+    note: "Révision de la forêt (les 12 mots + friend)"
+  - id: 15
+    date: 2026-12-15
+    type: lesson
+    biome: river
+    backgrounds: [nest, riverbank]
+    new_words: [duck, one]
+    review_words: [yellow]
+    friends: [duck]
+    action: waddle
+  - id: 16
+    date: 2026-12-16
+    type: lesson
+    biome: river
+    backgrounds: [nest, riverbank]
+    new_words: [fish, two]
+    review_words: [blue]
+    friends: [fish]
+    action: swim
+  - id: 17
+    date: 2026-12-17
+    type: lesson
+    biome: river
+    backgrounds: [nest, river_rocks]
+    new_words: [turtle, three]
+    review_words: [small]
+    friends: [turtle]
+    action: crawl
+  - id: 18
+    date: 2026-12-18
+    type: lesson
+    biome: river
+    backgrounds: [nest, river_rocks]
+    new_words: [rock, four]
+    review_words: [frog]
+    friends: [turtle, frog]
+    action: tiptoe
+  - id: 19
+    date: 2026-12-19
+    type: lesson
+    biome: river
+    backgrounds: [nest, riverbank]
+    new_words: [water, five]
+    review_words: [big]
+    friends: [duck, fish]
+    action: wash
+  - id: 20
+    date: 2026-12-20
+    type: lesson
+    biome: river
+    backgrounds: [nest, riverbank]
+    new_words: [splash, count]
+    review_words: [one, two, three, four, five]
+    friends: [duck, fish, turtle]
+    action: splash
+  - id: 21
+    date: 2026-12-21
+    type: review
+    biome: river
+    backgrounds: [nest, riverbank, river_rocks]
+    review_words: [duck, one, fish, two, turtle, three, rock, four, water, five, splash, count]
+    friends: [duck, fish, turtle]
+    action: drum
+    note: "Révision de la rivière"
+  - id: 22
+    date: 2026-12-22
+    type: lesson
+    biome: mountain
+    backgrounds: [nest, rocky_slope]
+    new_words: [goat, climb]
+    review_words: [rock]
+    friends: [goat]
+    action: climb
+  - id: 23
+    date: 2026-12-23
+    type: lesson
+    biome: mountain
+    backgrounds: [nest, rocky_slope]
+    new_words: [jump, up]
+    review_words: [climb]
+    friends: [goat, frog]
+    action: jump
+  - id: 24
+    date: 2026-12-24
+    type: lesson
+    biome: mountain
+    backgrounds: [nest, snowy_peak]
+    new_words: [eagle, fly]
+    review_words: [parrot]
+    friends: [eagle]
+    action: fly
+  - id: 25
+    date: 2026-12-25
+    type: lesson
+    biome: mountain
+    backgrounds: [nest, rocky_slope]
+    new_words: [rabbit, run]
+    review_words: [jump]
+    friends: [rabbit]
+    action: run
+  - id: 26
+    date: 2026-12-26
+    type: lesson
+    biome: mountain
+    backgrounds: [nest, snowy_peak]
+    new_words: [snow, cold]
+    review_words: [night]
+    friends: [rabbit, goat]
+    action: shiver
+  - id: 27
+    date: 2026-12-27
+    type: lesson
+    biome: mountain
+    backgrounds: [nest, rocky_slope]
+    new_words: [sleep, goodnight]
+    review_words: [moon]
+    friends: [owl]
+    action: yawn
+  - id: 28
+    date: 2026-12-28
+    type: review
+    biome: mountain
+    backgrounds: [nest, rocky_slope, snowy_peak]
+    review_words: [hello, gorilla, parrot, tree, frog, leaf, elephant, big, banana, small, flower, friend, owl, green, apple, red, squirrel, yellow, bear, blue, rainbow, color, moon, night, duck, one, fish, two, turtle, three, rock, four, water, five, splash, count, goat, climb, jump, up, eagle, fly, rabbit, run, snow, cold, sleep, goodnight]
+    friends: [parrot, frog, elephant, owl, squirrel, bear, duck, fish, turtle, goat, eagle, rabbit]
+    action: drum
+    note: "Révision de la montagne et de la saison (les 48 mots)"

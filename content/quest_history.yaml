@@ -1,0 +1,3 @@
+# Quêtes déjà utilisées, ajoutées automatiquement après chaque épisode fabriqué.
+# Sert à varier les histoires : une quête trop proche d'une ancienne bloque l'épisode.
+quests: []

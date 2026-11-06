@@ -1,0 +1,487 @@
+{
+  "episode_id": 3,
+  "title": "Frog and Leaf",
+  "quest_summary": "Frog lost his favorite leaf and Bongo helps him find it.",
+  "scenes": [
+    {
+      "id": "s1",
+      "segment": "hello",
+      "background": "nest",
+      "characters": [
+        {
+          "name": "bongo",
+          "pose": "stand",
+          "position": "center"
+        }
+      ],
+      "lines": [
+        {
+          "speaker": "bongo",
+          "text": "Hello, little explorer!",
+          "pose": "arms_up"
+        },
+        {
+          "speaker": "bongo",
+          "text": "I am Bongo the gorilla."
+        },
+        {
+          "speaker": "bongo",
+          "text": "I am in my nest. Look!",
+          "pose": "point"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Today is a fun day!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Let's say hello together!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Can you say hello?",
+          "prompt_word": "hello",
+          "pause_after": 3.0
+        },
+        {
+          "speaker": "bongo",
+          "text": "Hello! Great job!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Are you ready? Yes?",
+          "pause_after": 3.0
+        },
+        {
+          "speaker": "bongo",
+          "text": "Boom, boom, boom! Hello!",
+          "pose": "drum_a"
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "segment": "quest",
+      "background": "nest",
+      "characters": [
+        {
+          "name": "bongo",
+          "pose": "stand",
+          "position": "left"
+        },
+        {
+          "name": "frog",
+          "pose": "pose_1",
+          "position": "right"
+        }
+      ],
+      "lines": [
+        {
+          "speaker": "bongo",
+          "text": "Oh! Who is this?",
+          "pose": "point"
+        },
+        {
+          "speaker": "bongo",
+          "text": "It is Frog! Hello, Frog!"
+        },
+        {
+          "speaker": "frog",
+          "text": "Hello, Bongo! Hello, little explorer!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Can you say frog?",
+          "prompt_word": "frog",
+          "pause_after": 3.0
+        },
+        {
+          "speaker": "bongo",
+          "text": "Frog! Great job!",
+          "card": "frog",
+          "pose": "arms_up"
+        },
+        {
+          "speaker": "frog",
+          "text": "Uh-oh. I lost my leaf.",
+          "pose": "pose_2"
+        },
+        {
+          "speaker": "frog",
+          "text": "My favorite leaf!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Frog lost his leaf."
+        },
+        {
+          "speaker": "bongo",
+          "text": "We can help Frog!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Let's explore!",
+          "pose": "arms_up"
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "segment": "encounter_1",
+      "background": "clearing",
+      "characters": [
+        {
+          "name": "bongo",
+          "pose": "stand",
+          "position": "left"
+        },
+        {
+          "name": "frog",
+          "pose": "pose_1",
+          "position": "right"
+        }
+      ],
+      "lines": [
+        {
+          "speaker": "bongo",
+          "text": "Look! A frog! Frog!",
+          "pose": "point"
+        },
+        {
+          "speaker": "frog",
+          "text": "Frog can jump. Jump, jump!",
+          "pose": "pose_2"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Can you jump like Frog?",
+          "gesture": "jump",
+          "pause_after": 3.0
+        },
+        {
+          "speaker": "bongo",
+          "text": "Jump, jump, jump! Wow!",
+          "pose": "arms_up"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Hello, frog! Frog!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Can you say frog?",
+          "prompt_word": "frog",
+          "pause_after": 3.0
+        },
+        {
+          "speaker": "bongo",
+          "text": "Frog! You did it!",
+          "card": "frog"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Frogs like to jump!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Frog, where is your leaf?"
+        },
+        {
+          "speaker": "frog",
+          "text": "I don't know, Bongo."
+        },
+        {
+          "speaker": "bongo",
+          "text": "Let's look in the tree!",
+          "pose": "point"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Hmm. Let's look again!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Can you find the leaf?",
+          "pause_after": 3.0
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "segment": "encounter_2",
+      "background": "clearing",
+      "characters": [
+        {
+          "name": "bongo",
+          "pose": "stand",
+          "position": "center"
+        }
+      ],
+      "lines": [
+        {
+          "speaker": "bongo",
+          "text": "Hmm. What is this?",
+          "pose": "crouch"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Look! A leaf!",
+          "pose": "point"
+        },
+        {
+          "speaker": "bongo",
+          "text": "It is a little leaf."
+        },
+        {
+          "speaker": "bongo",
+          "text": "Can you say leaf?",
+          "prompt_word": "leaf",
+          "pause_after": 3.0
+        },
+        {
+          "speaker": "bongo",
+          "text": "Leaf! Great job!",
+          "card": "leaf",
+          "pose": "arms_up"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Is it Frog's leaf?"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Hmm. Let's look again!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Oh! A leaf, a leaf!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "So many leaves!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Can you say leaf?",
+          "prompt_word": "leaf",
+          "pause_after": 3.0
+        },
+        {
+          "speaker": "bongo",
+          "text": "Leaf! Wow! You did it!",
+          "card": "leaf"
+        },
+        {
+          "speaker": "bongo",
+          "text": "A leaf for Frog!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Let's show Frog the leaf!"
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "segment": "review_word",
+      "background": "clearing",
+      "characters": [
+        {
+          "name": "bongo",
+          "pose": "stand",
+          "position": "left"
+        },
+        {
+          "name": "parrot",
+          "pose": "pose_1",
+          "position": "right"
+        }
+      ],
+      "lines": [
+        {
+          "speaker": "bongo",
+          "text": "Look! Who is this?",
+          "pose": "point"
+        },
+        {
+          "speaker": "bongo",
+          "text": "It is Parrot! Hello, Parrot!"
+        },
+        {
+          "speaker": "parrot",
+          "text": "Hello! Hello!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Can you say parrot?",
+          "prompt_word": "parrot",
+          "pause_after": 3.0
+        },
+        {
+          "speaker": "bongo",
+          "text": "Parrot! Great job!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Parrot, where is the leaf?"
+        },
+        {
+          "speaker": "parrot",
+          "text": "Leaf! Leaf! In the tree!",
+          "pose": "pose_2"
+        },
+        {
+          "speaker": "bongo",
+          "text": "In the tree? Thank you, Parrot!"
+        }
+      ]
+    },
+    {
+      "id": "s6",
+      "segment": "success",
+      "background": "clearing",
+      "characters": [
+        {
+          "name": "bongo",
+          "pose": "stand",
+          "position": "left"
+        },
+        {
+          "name": "frog",
+          "pose": "pose_1",
+          "position": "right"
+        }
+      ],
+      "lines": [
+        {
+          "speaker": "bongo",
+          "text": "Look! A leaf in the tree!",
+          "pose": "point"
+        },
+        {
+          "speaker": "bongo",
+          "text": "It is Frog's leaf!",
+          "pose": "arms_up"
+        },
+        {
+          "speaker": "frog",
+          "text": "My leaf! Thank you, Bongo!",
+          "pose": "pose_2"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Here is your leaf, Frog."
+        },
+        {
+          "speaker": "bongo",
+          "text": "We did it! Boom, boom, boom!",
+          "pose": "drum_a"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Can you drum like me?",
+          "gesture": "drum",
+          "pause_after": 3.0,
+          "pose": "drum_b"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Boom, boom, boom! Great job!",
+          "pose": "drum_a"
+        }
+      ]
+    },
+    {
+      "id": "s7",
+      "segment": "recap",
+      "background": "nest",
+      "characters": [
+        {
+          "name": "bongo",
+          "pose": "stand",
+          "position": "center"
+        }
+      ],
+      "lines": [
+        {
+          "speaker": "bongo",
+          "text": "Let's say our words again!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Look! Who is this?",
+          "card": "frog",
+          "pose": "point"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Frog! Can you say frog?",
+          "prompt_word": "frog",
+          "pause_after": 3.0
+        },
+        {
+          "speaker": "bongo",
+          "text": "Frog! Great job!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Look! What is this?",
+          "card": "leaf",
+          "pose": "point"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Leaf! Can you say leaf?",
+          "prompt_word": "leaf",
+          "pause_after": 3.0
+        },
+        {
+          "speaker": "bongo",
+          "text": "Leaf! You did it!"
+        }
+      ]
+    },
+    {
+      "id": "s8",
+      "segment": "goodbye",
+      "background": "nest",
+      "characters": [
+        {
+          "name": "bongo",
+          "pose": "stand",
+          "position": "center"
+        }
+      ],
+      "lines": [
+        {
+          "speaker": "bongo",
+          "text": "Let's drum together!",
+          "pose": "drum_a"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Boom, boom, boom!",
+          "pose": "drum_b"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Bye-bye, frog! Bye-bye, leaf!",
+          "pose": "arms_up"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Thank you, little explorer!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "Bye-bye, little explorer!"
+        },
+        {
+          "speaker": "bongo",
+          "text": "See you tomorrow!",
+          "pose": "arms_up"
+        }
+      ]
+    }
+  ]
+}

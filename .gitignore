@@ -1,0 +1,17 @@
+# Secrets
+.env
+token*.json
+client_secret*.json
+# Productions
+episodes/
+out/
+# Outils téléchargés
+tools/rhubarb/*
+!tools/rhubarb/LISEZMOI.txt
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/

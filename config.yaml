@@ -1,0 +1,28 @@
+# Réglages de la chaîne. Les voix, vitesses et dimensions sont FIGÉES :
+# ne les modifier que sur décision explicite (cohérence de Bongo d'un épisode à l'autre).
+video: {width: 1920, height: 1080, fps: 24}
+positions: {left: 0.25, center: 0.5, right: 0.75}   # fraction de la largeur
+voices:
+  bongo:    {voice: "A_CHOISIR", speed: 0.85}
+  parrot:   {voice: "A_CHOISIR", speed: 0.90}
+  frog:     {voice: "A_CHOISIR", speed: 0.90}
+  elephant: {voice: "A_CHOISIR", speed: 0.90}
+llm: {model: "A_CHOISIR_MODELE_FLASH_GRATUIT", temperature: 0.7, max_retries: 3}
+qa:
+  min_word_repeats: 8
+  min_cards_per_word: 2
+  max_words_per_sentence: 6
+  prompt_pause_s: 3.0
+  lesson_duration_s: [200, 260]
+  review_duration_s: [300, 360]
+  min_shot_s: 3
+  # Estimation de durée avant la synthèse vocale (à recaler à l'étape 2 avec les vraies voix)
+  estimate_words_per_s: 2.0
+  estimate_min_line_s: 1.2
+  gap_between_lines_s: 0.4
+  scene_fade_s: 0.5
+  # Au-delà de ce score (0 à 1), une quête est jugée trop proche d'une quête déjà utilisée
+  quest_similarity_max: 0.75
+audio: {music_db_under_voice: -20, loudness_lufs: -14}
+publish: {time: "13:00", timezone: "Europe/Paris"}
+upload: {enabled: false}

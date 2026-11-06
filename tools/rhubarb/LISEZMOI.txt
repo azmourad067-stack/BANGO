@@ -1,0 +1,8 @@
+Rhubarb Lip Sync va dans ce dossier.
+
+1. Télécharger la version Windows (fichier Rhubarb-Lip-Sync-x.y.z-Windows.zip)
+   sur https://github.com/DanielSWolf/rhubarb-lip-sync/releases
+2. Dézipper et copier TOUT le contenu du dossier dézippé ici,
+   de sorte que rhubarb.exe soit directement dans tools/rhubarb/
+   (le sous-dossier "res" doit être à côté de rhubarb.exe).
+3. Relancer : python -m bongo check-setup
