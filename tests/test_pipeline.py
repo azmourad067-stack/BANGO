@@ -17,6 +17,7 @@ def _build(project, **kw):
     kw.setdefault("synth", FakeSynth())
     kw.setdefault("transcriber", FakeWhisper())
     kw.setdefault("rhubarb_runner", fake_rhubarb)
+    kw.setdefault("render", False)
     return build_episode_audio(project, 3, **kw, **QUIET)
 
 
@@ -32,8 +33,9 @@ def test_build_with_handwritten_script(project):
     assert (folder / "lipsync" / "l001.json").is_file()
     qa = json.loads((folder / "qa.json").read_text())
     assert qa["status"] == report.status and qa["steps"]["asr"]
-    preview = folder / "ep003_audio.wav"
-    assert wav_duration(preview) == pytest.approx(report.duration_s, abs=0.01)
+    timeline = json.loads((folder / "timeline.json").read_text())
+    assert wav_duration(folder / "voice.wav") == pytest.approx(timeline["duration_s"], abs=0.01)
+    assert report.duration_s == pytest.approx(timeline["duration_s"], abs=0.01)
     history = yaml.safe_load((project / "content" / "quest_history.yaml").read_text())
     assert history["quests"][0]["episode_id"] == 3
 
@@ -102,3 +104,22 @@ def test_cli_build_episode_without_rhubarb(project, monkeypatch, capsys):
     monkeypatch.delenv("BONGO_ROOT", raising=False)
     assert main(["build-episode", "3", "--script-file", str(EXAMPLE)]) == 1
     assert "Rhubarb" in capsys.readouterr().err
+
+
+def test_full_build_with_video(project):
+    """De bout en bout, image comprise (en petite résolution pour aller vite)."""
+    import subprocess
+
+    from bongo.curriculum import load_curriculum
+    from bongo.placeholders import generate_placeholders
+
+    cfg = project / "config.yaml"
+    cfg.write_text(cfg.read_text().replace("width: 1920, height: 1080", "width: 192, height: 108"))
+    generate_placeholders(project, load_curriculum(project))
+    report = _build(project, script_file=EXAMPLE, render=True, workers=2)
+    folder = episode_dir(project, 3)
+    preview = folder / "ep003_apercu.mp4"
+    assert report.steps["render"]["preview"] == preview.name and preview.is_file()
+    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width",
+                            "-of", "csv=p=0", str(preview)], capture_output=True, text=True).stdout
+    assert "video" in probe and "audio" in probe and "192" in probe

@@ -36,13 +36,20 @@ Ouvrir un terminal dans le dossier du projet, puis activer l'environnement :
 | `python -m bongo build-episode 3` | Fabrique l'épisode 3 : scénario Gemini, voix, contrôle Whisper, bouches, audio complet |
 | `python -m bongo build-episode 3 --script-file content\examples\ep003_frog_leaf.json` | Même chose avec un scénario écrit à la main (sans Gemini) |
 | `python -m bongo build-episode 3 --new-script` | Redemande un scénario à Gemini (sinon le précédent est réutilisé) |
+| `python -m bongo build-episode 3 --no-video` | S'arrête au son (plus rapide) |
+| `python -m bongo render 3` | Refait seulement l'image (après avoir changé un dessin) |
+| `python -m bongo render 3 --image 40` | Une seule image, à la 40e seconde (pour vérifier un dessin) |
+| `python -m bongo render 3 --script-file content\examples\ep003_frog_leaf.json` | Maquette muette, sans les voix |
 | `python -m pytest` | Lance les tests |
 
-Pour l'instant `build-episode` s'arrête à l'audio : écoute `episodes\ep003\ep003_audio.wav`.
-L'image et la vidéo arrivent aux étapes 3 et 4 ; `build-week` et `compile` à l'étape 5.
+Pour l'instant `build-episode` produit un aperçu avec les voix seules : `episodes\ep003\ep003_apercu.mp4`.
+Musique, bruitages, sous-titres et miniature arrivent à l'étape 4 ; `build-week` et `compile` à l'étape 5.
 
 Dans `episodes\ep003\` : `script.json` (scénario), `audio\` (une réplique = un WAV),
-`lipsync\` (bouches), `qa.json` (résultat des contrôles), `rejected\` (scénarios refusés par les contrôles).
+`lipsync\` (bouches), `timeline.json` (minutage), `voice.wav` (voix placées), `video.mp4` (image seule),
+`qa.json` (résultat des contrôles), `rejected\` (scénarios refusés par les contrôles).
+
+Pour remplacer les dessins provisoires par les vrais : voir [docs/DESSINS.md](docs/DESSINS.md).
 Relancer la commande réutilise tout ce qui est déjà fait.
 
 ## Corriger une prononciation

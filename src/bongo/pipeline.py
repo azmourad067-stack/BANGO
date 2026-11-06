@@ -198,24 +198,36 @@ def run_asr(
 # --- Aperçu audio ---------------------------------------------------------------------------------
 
 
-def assemble_preview(lines: list[LineAudio], script: Script, config: Config, target: Path) -> float:
-    """Répliques bout à bout + pause_after + 0,4 s entre deux répliques + fondu entre scènes."""
-    flat = script.all_lines()
-    parts: list[np.ndarray] = []
-    for i, (line, src) in enumerate(zip(lines, flat)):
+def assemble_voice_track(timeline: dict, lines: list[LineAudio], target: Path) -> float:
+    """Place chaque réplique à son instant de la timeline (le son suit exactement l'image)."""
+    total = int(round(timeline["duration_s"] * SAMPLE_RATE))
+    track = np.zeros(total, dtype=np.float32)
+    for entry, line in zip(timeline["lines"], lines):
         audio, rate = read_wav(line.wav)
         if rate != SAMPLE_RATE:
             raise BongoError(f"{line.wav.name} n'est pas en {SAMPLE_RATE} Hz.")
-        parts.append(audio)
-        if src.pause_after:
-            parts.append(silence(src.pause_after))
-        if i + 1 < len(lines):
-            parts.append(silence(config.qa.gap_between_lines_s))
-            if lines[i + 1].scene_id != line.scene_id:
-                parts.append(silence(config.qa.scene_fade_s))
-    full = np.concatenate(parts) if parts else silence(0)
-    write_wav(target, full)
-    return len(full) / SAMPLE_RATE
+        start = int(round(entry["start"] * SAMPLE_RATE))
+        chunk = audio[: max(0, total - start)]
+        track[start : start + len(chunk)] += chunk
+    write_wav(target, track)
+    return total / SAMPLE_RATE
+
+
+def load_mouth_cues(folder: Path, lines: list[LineAudio]) -> dict[str, list[dict]]:
+    cues = {}
+    for line in lines:
+        path = folder / "lipsync" / f"{line.id}.json"
+        if path.is_file():
+            cues[line.id] = json.loads(path.read_text(encoding="utf-8")).get("cues", [])
+    return cues
+
+
+def make_timeline(folder: Path, script: Script, episode: Episode, config: Config, lines: list[LineAudio]) -> dict:
+    from bongo.timeline import build_timeline, save_timeline
+
+    timeline = build_timeline(script, episode, config, [l.duration_s for l in lines], load_mouth_cues(folder, lines))
+    save_timeline(timeline, folder / "timeline.json")
+    return timeline
 
 
 def update_quest_history(root: Path, episode_id: int, title: str, summary: str) -> None:
@@ -243,6 +255,8 @@ def build_episode_audio(
     synth: Synth | None = None,
     transcriber: Transcriber | None = None,
     rhubarb_runner=None,
+    render: bool = True,
+    workers: int | None = None,
     log: Callable[[str], None] = print,
 ) -> EpisodeReport:
     config = load_config(root)
@@ -261,7 +275,7 @@ def build_episode_audio(
     rhubarb = None if rhubarb_runner else find_rhubarb(root)
 
     log(f"Épisode {episode_id} — {', '.join(episode.new_words) or 'révision'}")
-    log("1/4 Scénario")
+    log("1/6 Scénario")
     script, check, info = obtain_script(
         root, episode, curriculum, config, rules, folder, script_file, new_script, llm_factory, log
     )
@@ -270,7 +284,7 @@ def build_episode_audio(
     if check.status == "error":
         return finish()
 
-    log("2/4 Voix")
+    log("2/6 Voix")
     pronunciations = load_pronunciations(root)
     audio_dir = folder / "audio"
     variants_path = audio_dir / "variants.json"
@@ -293,25 +307,99 @@ def build_episode_audio(
 
     lines = synthesize()
 
-    log("3/4 Contrôle de prononciation")
+    log("3/6 Contrôle de prononciation")
     if transcriber is None:
         transcriber = load_whisper(config.asr.model, config.asr.device, config.asr.compute_type)
     lines = run_asr(lines, script, episode, config, transcriber, folder, synthesize, report, log)
 
-    log("4/4 Bouches")
+    log("4/6 Bouches")
     kwargs = {"runner": rhubarb_runner} if rhubarb_runner else {"runner": run_rhubarb}
     lipsync_lines(lines, folder / "lipsync", rhubarb or Path("rhubarb"), log=log, **kwargs)
     report.steps["lipsync"] = {"lines": len(lines)}
 
-    report.duration_s = assemble_preview(lines, script, config, folder / f"ep{episode_id:03d}_audio.wav")
+    log("5/6 Minutage")
+    from bongo.timeline import check_timeline
+
+    timeline = make_timeline(folder, script, episode, config, lines)
+    for problem in check_timeline(timeline, config.qa.min_shot_s):
+        report.issues.append(Issue(ERROR, "timeline", problem))
+    voice = folder / "voice.wav"
+    report.duration_s = assemble_voice_track(timeline, lines, voice)
     low, high = config.qa.review_duration_s if episode.is_review else config.qa.lesson_duration_s
     if not low <= report.duration_s <= high:
         report.issues.append(Issue(WARNING, "real_duration",
             f"durée réelle {report.duration_s:.0f} s, hors de l'intervalle prévu ({low:g} à {high:g} s)"))
 
+    if render and report.status != "error":
+        log("6/6 Image")
+        from bongo.render import mux_preview, render_video
+
+        video = render_video(root, timeline, config, folder / "video.mp4", workers=workers, log=log)
+        mux_preview(video, voice, folder / f"ep{episode_id:03d}_apercu.mp4")
+        report.steps["render"] = {"video": "video.mp4", "preview": f"ep{episode_id:03d}_apercu.mp4"}
+
     if report.status != "error":
         update_quest_history(root, episode_id, script.title, script.quest_summary)
     return finish()
+
+
+# --- Rendu seul -------------------------------------------------------------------------------------
+
+
+def render_episode(
+    root: Path,
+    episode_id: int,
+    script_file: Path | None = None,
+    max_seconds: float | None = None,
+    still_at: float | None = None,
+    workers: int | None = None,
+    log: Callable[[str], None] = print,
+) -> Path:
+    """Refait le minutage et l'image d'un épisode.
+
+    Avec les voix déjà fabriquées : minutage réel, bouches synchronisées, aperçu avec le son.
+    Sans voix (ou avec --script-file) : maquette muette, durées estimées, bouches fermées.
+    """
+    from bongo.render import mux_preview, render_still, render_video
+    from bongo.script_check import estimate_duration
+    from bongo.tts import wav_duration
+    from bongo.timeline import build_timeline, save_timeline
+
+    config = load_config(root)
+    curriculum = load_curriculum(root)
+    episode = curriculum.get(episode_id)
+    folder = episode_dir(root, episode_id)
+    folder.mkdir(parents=True, exist_ok=True)
+    script_path = script_file or folder / "script.json"
+    if not script_path.is_file():
+        raise BongoError(
+            f"Pas de scénario pour l'épisode {episode_id} : lance d'abord `python -m bongo build-episode {episode_id}` "
+            "ou donne un scénario avec --script-file."
+        )
+    script = load_script(script_path)
+    audio_dir = folder / "audio"
+    flat = script.all_lines()
+    wavs = [audio_dir / f"l{i:03d}.wav" for i in range(1, len(flat) + 1)]
+    with_audio = script_file is None and all(w.is_file() for w in wavs)
+    if with_audio:
+        lines = [LineAudio(w.stem, "", 0, l.speaker, l.text, w, w.with_suffix(".txt"), wav_duration(w))
+                 for w, l in zip(wavs, flat)]
+        timeline = make_timeline(folder, script, episode, config, lines)
+    else:
+        log("  Voix absentes : maquette muette avec durées estimées et bouches fermées.")
+        qa = config.qa
+        durations = [max(qa.estimate_min_line_s, len(l.text.split()) / qa.estimate_words_per_s) for l in flat]
+        timeline = build_timeline(script, episode, config, durations)
+        save_timeline(timeline, folder / "timeline.json")
+    if still_at is not None:
+        out = render_still(root, timeline, config, still_at, folder / f"image_{still_at:g}s.png")
+        return out
+    video = render_video(root, timeline, config, folder / "video.mp4", workers=workers, max_seconds=max_seconds, log=log)
+    if with_audio:
+        voice = folder / "voice.wav"
+        assemble_voice_track(timeline, lines, voice)
+        return mux_preview(video, voice, folder / f"ep{episode_id:03d}_apercu.mp4")
+    return video
 
 
 # --- Écoute des mots du programme --------------------------------------------------------------------

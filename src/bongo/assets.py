@@ -78,3 +78,45 @@ def missing_assets_for_biome(root: Path, curriculum: Curriculum, biome: str) -> 
             missing.append(MissingAsset("carte-mot", card_path(word)))
     return missing
 
+
+
+def validate_rig(root: Path, name: str) -> list[str]:
+    """Problèmes du rig.json d'un personnage (liste vide si tout va bien)."""
+    import json
+
+    from bongo.schema import FRIEND_POSES
+
+    path = root / "assets" / "characters" / name / "rig.json"
+    if not path.is_file():
+        return [f"{path.relative_to(root)} manquant"]
+    try:
+        rig = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"{path.name} de {name} n'est pas un JSON valide : {exc}"]
+    problems = []
+    for key in ("canvas", "feet", "face"):
+        if key not in rig:
+            problems.append(f"{name} : clé « {key} » absente de rig.json")
+    if problems:
+        return problems
+    poses = BONGO_POSES if name == BONGO else FRIEND_POSES
+    parts = ("eyes", "brows", "mouth") if name == BONGO else ("eyes", "mouth")
+    for pose in poses:
+        face = rig["face"].get(pose)
+        if face is None:
+            problems.append(f"{name} : pas de position du visage pour la pose « {pose} » (face.{pose})")
+            continue
+        problems += [f"{name} : face.{pose}.{p} manquant" for p in parts if p not in face]
+    w, h = rig["canvas"]
+    bodies = [f"body/{p}.png" for p in BONGO_POSES] if name == BONGO else [f"{p}.png" for p in FRIEND_POSES]
+    from PIL import Image
+
+    for rel in bodies:
+        img_path = path.parent / rel
+        if img_path.is_file():
+            with Image.open(img_path) as img:
+                if img.size != (w, h):
+                    problems.append(f"{name} : {rel} mesure {img.size[0]}x{img.size[1]}, le canvas du rig est {w}x{h}")
+                if img.mode not in ("RGBA", "LA", "P"):
+                    problems.append(f"{name} : {rel} n'a pas de transparence (PNG RGBA attendu)")
+    return problems

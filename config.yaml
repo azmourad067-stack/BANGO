@@ -2,6 +2,8 @@
 # ne les modifier que sur décision explicite (cohérence de Bongo d'un épisode à l'autre).
 video: {width: 1920, height: 1080, fps: 24}
 positions: {left: 0.25, center: 0.5, right: 0.75}   # fraction de la largeur
+# Mise en scène, en fraction de la hauteur de l'image : ligne du sol, taille des personnages, haut des cartes-mots
+stage: {ground: 0.96, bongo_height: 0.62, friend_height: 0.34, card_top: 0.06, card_height: 0.46}
 voices:
   # Choisies d'après les notes de qualité de Kokoro (VOICES.md) et le caractère de chaque personnage.
   # FIGÉES dès la publication du premier épisode (1er décembre).

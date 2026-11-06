@@ -29,6 +29,14 @@ class PositionsConfig(_Strict):
     right: float
 
 
+class StageConfig(_Strict):
+    ground: float = Field(default=0.96, gt=0, le=1)
+    bongo_height: float = Field(default=0.62, gt=0, le=1)
+    friend_height: float = Field(default=0.34, gt=0, le=1)
+    card_top: float = Field(default=0.05, ge=0, lt=1)
+    card_height: float = Field(default=0.50, gt=0, le=1)
+
+
 class VoiceConfig(_Strict):
     voice: str
     speed: float = Field(gt=0)
@@ -79,6 +87,7 @@ class UploadConfig(_Strict):
 class Config(_Strict):
     video: VideoConfig
     positions: PositionsConfig
+    stage: StageConfig = StageConfig()
     voices: dict[str, VoiceConfig]
     llm: LLMConfig
     qa: QAConfig

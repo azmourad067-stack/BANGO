@@ -11,7 +11,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from bongo.assets import FONT_FILE, missing_assets_for_biome
+from bongo.assets import FONT_FILE, missing_assets_for_biome, validate_rig
 from bongo.config import PLACEHOLDER, get_secret, load_config
 from bongo.curriculum import load_curriculum
 from bongo.errors import BongoError
@@ -216,6 +216,13 @@ def run_checks(root: Path) -> list[Check]:
                           "Lance `python -m bongo placeholders` pour des assets provisoires, ou ajoute les dessins."))
             else:
                 add(Check(f"Assets « {biome} »", OK, "complets"))
+        rig_problems = []
+        for name in ["bongo", *curriculum.all_friends()]:
+            if (root / "assets" / "characters" / name).is_dir():
+                rig_problems += validate_rig(root, name)
+        if rig_problems:
+            add(Check("Dessins (rig.json)", MISSING, f"{len(rig_problems)} problème(s) : " + " ; ".join(rig_problems[:4]),
+                      "Voir docs/DESSINS.md, section rig.json."))
         provisional = count_placeholders_in_use(root)
         if provisional:
             add(Check("Assets provisoires", WARN, f"{provisional} fichier(s) encore provisoire(s)",
