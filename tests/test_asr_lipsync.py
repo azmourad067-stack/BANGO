@@ -76,3 +76,16 @@ def test_load_for_whisper(tmp_path):
     audio = load_for_whisper(tmp_path / "a.wav")
     assert audio.dtype == np.float32 and abs(len(audio) - 16_000) <= 1
     assert 0.4 < np.abs(audio).max() < 0.6
+
+
+def test_fillers_tolerated():
+    from bongo.script_check import tokenize
+
+    def rate(a, b):
+        return mismatch_rate(tokenize(a), tokenize(b))
+
+    assert rate("Hmm. Let's look again!", "Um, let's look again.") == 0
+    assert rate("Hmm. What is this?", "And what is this?") == 0
+    assert rate("Hmm. What is this?", "What is this?") == 0
+    assert rate("Look again!", "Um, look again.") == 0
+    assert rate("Can you say leaf?", "Can you? I say leaf.") == pytest.approx(0.25)

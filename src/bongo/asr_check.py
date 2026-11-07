@@ -76,17 +76,30 @@ def _same(a: str, b: str) -> bool:
     return a == b or bool(word_forms(a) & word_forms(b))
 
 
+# Interjections sans orthographe fixe : Whisper les écrit au hasard (« Hmm » -> « Um », « And »…)
+FILLERS = {"hmm", "hm", "mm", "mmm", "um", "uh", "ah", "er", "erm", "uhm", "huh"}
+
+
 def mismatch_rate(expected: list[str], heard: list[str]) -> float:
-    """Taux d'erreur sur les mots (distance d'édition / nombre de mots attendus)."""
-    if not expected:
-        return 0.0 if not heard else 1.0
-    prev = list(range(len(heard) + 1))
-    for i, e in enumerate(expected, 1):
-        cur = [i] + [0] * len(heard)
+    """Taux d'erreur sur les mots (distance d'édition / nombre de mots attendus).
+    Une interjection attendue peut être entendue comme n'importe quel mot, ou pas du tout ;
+    une interjection entendue en plus ne compte pas."""
+    real = [e for e in expected if e not in FILLERS]
+    if not real:
+        return 0.0
+    prev = [0]
+    for h in heard:
+        prev.append(prev[-1] + (0 if h in FILLERS else 1))
+    for e in expected:
+        filler = e in FILLERS
+        cur = [prev[0] + (0 if filler else 1)]
         for j, h in enumerate(heard, 1):
-            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (0 if _same(e, h) else 1))
+            sub = 0 if (filler or _same(e, h)) else 1
+            cur.append(min(prev[j] + (0 if filler else 1),
+                           cur[j - 1] + (0 if h in FILLERS else 1),
+                           prev[j - 1] + sub))
         prev = cur
-    return prev[-1] / len(expected)
+    return prev[-1] / len(real)
 
 
 @dataclass
