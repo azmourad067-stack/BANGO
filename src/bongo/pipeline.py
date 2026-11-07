@@ -173,7 +173,11 @@ def run_asr(
         return check_line(line.id, line.text, heard(line), target_words(line.text, cands))
 
     log(f"  Contrôle de prononciation de {len(lines)} réplique(s)…")
-    results = [check(i, line) for i, line in enumerate(lines)]
+    results = []
+    for i, line in enumerate(lines):
+        results.append(check(i, line))
+        if (i + 1) % 10 == 0 or i + 1 == len(lines):
+            log(f"  … {i + 1}/{len(lines)} répliques écoutées")
     failed = {r.line_id for r in results if not r.ok}
     retry = {lid: 1 for lid in failed if next(l for l in lines if l.id == lid).variant == 0}
     if retry:

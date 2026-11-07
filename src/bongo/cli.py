@@ -263,6 +263,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    import os
+
+    # Avertissement sans conséquence sous Windows (cache des modèles sans liens symboliques)
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(errors="replace")
