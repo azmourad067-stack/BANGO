@@ -158,3 +158,34 @@ def test_is_overloaded():
     assert is_overloaded(_Err(503, "x")) and is_overloaded(_Err(500, "x"))
     assert is_overloaded(Exception("503 UNAVAILABLE"))
     assert not is_overloaded(_Err(400, "bad request"))
+
+
+def test_daily_quota_switches_model():
+    seen = []
+
+    class Resp:
+        text = "{}"
+
+    class Models:
+        def generate_content(self, model, **kw):
+            seen.append(model)
+            if model == "gemini-3.8-flash":
+                raise _Err(429, "RESOURCE_EXHAUSTED GenerateRequestsPerDayPerProjectPerModel")
+            return Resp()
+
+    google = pytest.importorskip("google.genai")
+    client = GeminiClient.__new__(GeminiClient)
+    client._genai = google
+    client.client = type("C", (), {"models": Models()})()
+    client.model_name, client.temperature, client.seed = "gemini-3.8-flash", 0.7, 1
+    client.fallbacks = ["gemini-3.8-flash-lite"]
+    client.sleep = lambda s: pytest.fail("ne doit pas attendre")
+    assert client.complete("sys", [("user", "hi")]) == "{}"
+    assert seen == ["gemini-3.8-flash", "gemini-3.8-flash-lite"] and client.model_name == "gemini-3.8-flash-lite"
+
+
+def test_flash_candidates():
+    from bongo.script_gen import flash_candidates
+
+    assert flash_candidates(["models/gemini-2.5-flash", "models/gemini-3.8-flash-lite", "models/gemini-3.8-flash",
+                             "models/gemini-4-pro"]) == ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-3.8-flash-lite"]

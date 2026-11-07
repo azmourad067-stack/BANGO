@@ -33,7 +33,7 @@ qa:
   review_duration_s: [300, 360]
   min_shot_s: 3
   # Estimation de durée avant la synthèse vocale (à recaler à l'étape 2 avec les vraies voix)
-  estimate_words_per_s: 2.0
+  estimate_words_per_s: 1.72   # mesuré sur les vraies voix (semaine 1)
   estimate_min_line_s: 1.2
   gap_between_lines_s: 0.4
   scene_fade_s: 0.5

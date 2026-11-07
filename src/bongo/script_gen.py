@@ -74,7 +74,7 @@ STRICT RULES (scripts are checked automatically and rejected if they fail):
 5. One gesture for the child to mime: put "gesture": "<action>" on the line inviting it, with a pause.
 6. Gentle tone: no fear, danger, mockery or irony. Problems are small and solved kindly.
 7. Slow rhythm: short lines, many pauses. Estimated length must be {duration} seconds
-   (a lesson needs about 60 to 75 lines; a review about 90 to 110 lines).
+   (aim for about {lines} lines in total).
 8. The quest must be NEW: different from all past quests listed below (different problem, not just
    a different animal or object).
 
@@ -92,7 +92,12 @@ Each character in a scene has its own position. Only characters on stage speak.
 def build_system_prompt(config: Config, episode: Episode) -> str:
     qa = config.qa
     low, high = qa.review_duration_s if episode.is_review else qa.lesson_duration_s
+    target = (low + high) / 2
+    pauses = (20 if episode.is_review else 12) * qa.prompt_pause_s
+    per_line = 4.5 / qa.estimate_words_per_s + qa.gap_between_lines_s  # environ 4,5 mots par réplique
+    n = (target - pauses) / per_line
     return SYSTEM_PROMPT.format(
+        lines=f"{int(n * 0.9)} to {int(n * 1.1)}",
         min_repeats=qa.min_word_repeats,
         min_cards=qa.min_cards_per_word,
         pause=qa.prompt_pause_s,
@@ -180,6 +185,19 @@ def pick_flash_model(names: list[str]) -> str | None:
     return best[1] if best else None
 
 
+def flash_candidates(names: list[str]) -> list[str]:
+    """Modèles gratuits par ordre de préférence : « Flash » stables du plus récent au plus ancien,
+    puis « Flash-Lite ». Chaque modèle a son propre quota journalier."""
+    found = []
+    for raw in names:
+        name = raw.split("/")[-1]
+        m = re.fullmatch(r"gemini-(\d+(?:\.\d+)*)-flash(-lite)?", name)
+        if m:
+            version = tuple(int(x) for x in m.group(1).split("."))
+            found.append((1 if m.group(2) else 0, tuple(-v for v in version), name))
+    return [name for *_, name in sorted(found)]
+
+
 MAX_RATE_WAITS = 3
 MAX_WAIT_S = 90
 # Serveurs Gemini surchargés (erreurs 500/503) : fréquent sur le palier gratuit, on patiente
@@ -216,6 +234,7 @@ class GeminiClient:
         self.client = genai.Client(api_key=api_key)
         self.temperature = temperature
         self.seed = seed
+        self.fallbacks: list[str] = []
         self.model_name = self._resolve(model) if model == "auto" else model
 
     def _available(self) -> list[str]:
@@ -230,7 +249,9 @@ class GeminiClient:
         return names
 
     def _resolve(self, model: str) -> str:
-        chosen = pick_flash_model(self._available())
+        candidates = flash_candidates(self._available())
+        chosen = candidates[0] if candidates else None
+        self.fallbacks = candidates[1:]
         if not chosen:
             raise BongoError(
                 "Aucun modèle « Flash » trouvé pour ta clé Gemini. Ouvre Google AI Studio, repère un modèle "
@@ -276,6 +297,11 @@ class GeminiClient:
                 is_rate = getattr(exc, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(exc)
                 if is_rate:
                     delay = retry_delay(str(exc))
+                    if delay is None and getattr(self, "fallbacks", None):  # quota du jour épuisé pour ce modèle
+                        old, self.model_name = self.model_name, self.fallbacks.pop(0)
+                        print(f"  Quota du jour épuisé pour {old} : on continue avec {self.model_name}.")
+                        rate_waits = overload_waits = 0
+                        continue
                     if delay is None or rate_waits >= MAX_RATE_WAITS:
                         raise self._explain(exc) from None
                     rate_waits += 1

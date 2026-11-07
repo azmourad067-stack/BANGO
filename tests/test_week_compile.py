@@ -123,7 +123,25 @@ def test_duration_advice(project):
         folder.mkdir(parents=True)
         (folder / "qa.json").write_text(json.dumps({"duration_s": real, "steps": {"script": {"estimated_duration_s": est}}}))
     advice = duration_advice(project, [1, 2])
-    assert "1.62" in advice and "123%" in advice
+    assert "1.40" in advice and "123%" in advice
     (episode_dir(project, 2) / "qa.json").write_text(json.dumps({"duration_s": 210, "steps": {"script": {"estimated_duration_s": 205}}}))
     (episode_dir(project, 1) / "qa.json").write_text(json.dumps({"duration_s": 200, "steps": {"script": {"estimated_duration_s": 205}}}))
     assert duration_advice(project, [1, 2]) is None
+
+
+def test_quota_keeps_episodes_that_have_a_script(project):
+    # semaine déjà fabriquée une fois (les scénarios existent avant les vidéos)
+    for ep_id in (6, 7):
+        episode_dir(project, ep_id).mkdir(parents=True)
+        (episode_dir(project, ep_id) / "script.json").write_text("{}")
+    build_week(project, START, build=_fake_build({}, []), log=lambda m: None)
+    # on refait tout (--force) mais le quota tombe à l'épisode 5
+    calls = []
+    results = build_week(project, START, force=True, build=_fake_build({5: "quota"}, calls), log=lambda m: None)
+    assert calls == [1, 2, 3, 4, 5]          # 6 et 7 déjà faits : gardés, pas reconstruits
+    assert results[6] == "ok" and results[7] == "ok"
+    # un épisode avec scénario mais pas encore fini est fabriqué malgré le quota
+    (episode_dir(project, 7) / "ep007.mp4").unlink()
+    calls = []
+    build_week(project, START, build=_fake_build({5: "quota"}, calls), log=lambda m: None)
+    assert calls == [5, 7]

@@ -174,6 +174,7 @@ def test_duration_too_short(run_check, example):
                 line["pause_after"] = 0
                 line["text"] = line["text"].rstrip("?") + "!"
     example["scenes"][3]["lines"] = example["scenes"][3]["lines"][:5]
+    example["scenes"][2]["lines"] = example["scenes"][2]["lines"][:8]
     result = run_check(example)
     assert "duration" in codes(result)
     assert result.estimated_duration_s < 200

@@ -80,7 +80,7 @@ def build_week(
     log: Callable[[str], None] = print,
 ) -> dict:
     """Fabrique la semaine. Renvoie {episode_id: statut}. `build` est remplaçable pour les tests."""
-    from bongo.pipeline import build_episode_audio
+    from bongo.pipeline import build_episode_audio, episode_dir
     from bongo.report import publish_to_week, week_dir, write_week_report
 
     curriculum = load_curriculum(root)
@@ -102,12 +102,13 @@ def build_week(
     say(f"=== Semaine du {start} : épisodes {episodes[0].id} à {episodes[-1].id} ===")
     try:
         for ep in episodes:
-            if quota_hit:
+            has_script = (episode_dir(root, ep.id) / "script.json").is_file()
+            if quota_hit and not has_script:  # il faudrait Gemini
                 msg = "Pas fabriqué : quota Gemini épuisé. Relance build-week plus tard (demain au plus tard)."
                 _record_failure(root, ep.id, msg, "not_built")
                 results[ep.id] = "non fabriqué"
                 continue
-            if not force and is_done(root, ep.id):
+            if (not force or quota_hit) and is_done(root, ep.id):
                 say(f"Épisode {ep.id} : déjà fait, conservé (--force pour le refaire).")
                 results[ep.id] = json.loads((root / "episodes" / f"ep{ep.id:03d}" / "qa.json").read_text(encoding="utf-8"))["status"]
                 publish_to_week(root, ep.id, results[ep.id], target)
