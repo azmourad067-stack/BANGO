@@ -236,8 +236,8 @@ def run_checks(root: Path) -> list[Check]:
                       "Voir docs/DESSINS.md, section rig.json."))
         provisional = count_placeholders_in_use(root)
         if provisional:
-            add(Check("Assets provisoires", WARN, f"{provisional} fichier(s) encore provisoire(s)",
-                      "Normal pendant le développement : remplace-les par les vrais dessins avant de publier."))
+            add(Check("Dessins et sons générés", OK, f"{provisional} fichier(s) créés par le programme",
+                      "Tu peux remplacer n'importe lequel par ton propre fichier, au même nom."))
 
     # Licences
     if not (root / "LICENSES.md").is_file():

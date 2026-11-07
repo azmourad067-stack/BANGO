@@ -31,6 +31,9 @@ BREATH_STEPS = 10           # respiration quantifiée (cache) : 0,1 % par pas
 BOUNCE_PERIOD_S = 0.6
 BOUNCE_HEIGHT = 0.05        # fraction de la taille du personnage
 SPRITE_CACHE = 240
+TALK_BOB_HZ = 1.6           # rebond de celui qui parle
+TALK_BOB_BONGO = 0.008      # fraction de sa taille
+TALK_BOB_FRIEND = 0.025
 X264 = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
 
 
@@ -278,8 +281,27 @@ class FrameRenderer:
                 return math.sin(math.pi * k)
         return 0.0
 
+    def _ambient(self, scene: dict):
+        if not hasattr(self, "_ambients"):
+            self._ambients = {}
+        if scene["id"] not in self._ambients:
+            from bongo.ambient import Ambient
+
+            seed = 7919 * self.tl.get("episode_id", 0) + sum(map(ord, scene["id"]))
+            self._ambients[scene["id"]] = Ambient(scene["background"], seed, self.W, self.H)
+        return self._ambients[scene["id"]]
+
+    def _talk_bob(self, scene: dict, name: str, t: float) -> float:
+        """Petit rebond doux de celui qui parle (0 à 1)."""
+        line = self._active(self.lines_by_speaker.get(name, []), t)
+        if not line or line["scene"] != scene["id"]:
+            return 0.0
+        env = min(1.0, (t - line["start"]) / 0.25, (line["end"] - t) / 0.25)
+        return max(0.0, env) * abs(math.sin(2 * math.pi * TALK_BOB_HZ * (t - line["start"])))
+
     def _draw_scene(self, scene: dict, t: float) -> Image.Image:
         frame = self._background(scene, t)
+        self._ambient(scene).draw(frame, t)
         ground = self.H * self.stage.ground
         for char in sorted(scene["characters"], key=lambda c: c["name"] == BONGO):  # Bongo devant
             name = char["name"]
@@ -290,6 +312,7 @@ class FrameRenderer:
             img, (fx, fy) = art.sprite(*state, breath, blend_from=prev_state, blend=blend)
             x = self.W * getattr(self.config.positions, char["position"])
             lift = self._bounce(name, t) * BOUNCE_HEIGHT * img.height
+            lift += self._talk_bob(scene, name, t) * (TALK_BOB_BONGO if name == BONGO else TALK_BOB_FRIEND) * img.height
             frame.paste(img, (round(x - fx), round(ground - fy - lift)), img)
         self._draw_cards(frame, t, scene)
         if self.tl.get("title"):
