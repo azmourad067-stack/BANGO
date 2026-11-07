@@ -153,3 +153,30 @@ def speaking_rate(root: Path, episode_ids: list[int]) -> float | None:
                 words += len(tokenize(txt.read_text(encoding="utf-8")))
                 seconds += wav_duration(wav)
     return words / seconds if seconds else None
+
+
+def duration_advice(root: Path, episode_ids: list[int]) -> str | None:
+    """Compare durées estimées et réelles ; propose un réglage si l'écart dépasse 10 %."""
+    from bongo.config import load_config
+    from bongo.pipeline import episode_dir
+
+    est = real = 0.0
+    for ep_id in episode_ids:
+        qa_path = episode_dir(root, ep_id) / "qa.json"
+        try:
+            qa = json.loads(qa_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+        e = qa.get("steps", {}).get("script", {}).get("estimated_duration_s")
+        r = qa.get("duration_s")
+        if e and r:
+            est, real = est + e, real + r
+    if not est:
+        return None
+    ratio = real / est
+    if abs(ratio - 1) <= 0.10:
+        return None
+    rate = load_config(root).qa.estimate_words_per_s
+    return (f"À noter : les épisodes durent en vrai {ratio:.0%} de la durée estimée. "
+            f"Dans config.yaml (qa: estimate_words_per_s), {rate / ratio:.2f} au lieu de {rate:g} "
+            "rendrait les estimations plus justes.")

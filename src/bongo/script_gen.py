@@ -182,6 +182,16 @@ def pick_flash_model(names: list[str]) -> str | None:
 
 MAX_RATE_WAITS = 3
 MAX_WAIT_S = 90
+# Serveurs Gemini surchargés (erreurs 500/503) : fréquent sur le palier gratuit, on patiente
+OVERLOAD_WAITS_S = (20, 45, 90, 180)
+
+
+def is_overloaded(exc: Exception) -> bool:
+    code = getattr(exc, "code", None)
+    text = str(exc)
+    return (isinstance(code, int) and code >= 500) or any(
+        k in text for k in ("UNAVAILABLE", "overloaded", "INTERNAL", "DEADLINE_EXCEEDED")
+    )
 
 
 def retry_delay(text: str) -> float | None:
@@ -257,16 +267,26 @@ class GeminiClient:
             seed=self.seed,
             response_mime_type="application/json",
         )
-        for wait_round in range(MAX_RATE_WAITS + 1):
+        rate_waits = overload_waits = 0
+        while True:
             try:
                 response = self.client.models.generate_content(model=self.model_name, contents=contents, config=config)
                 break
             except Exception as exc:
                 is_rate = getattr(exc, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(exc)
-                delay = retry_delay(str(exc)) if is_rate else None
-                if delay is None or wait_round == MAX_RATE_WAITS:
+                if is_rate:
+                    delay = retry_delay(str(exc))
+                    if delay is None or rate_waits >= MAX_RATE_WAITS:
+                        raise self._explain(exc) from None
+                    rate_waits += 1
+                    print(f"  Limite par minute de Gemini atteinte : nouvel essai dans {delay:.0f} s…")
+                elif is_overloaded(exc) and overload_waits < len(OVERLOAD_WAITS_S):
+                    delay = OVERLOAD_WAITS_S[overload_waits]
+                    overload_waits += 1
+                    print(f"  Gemini est surchargé : nouvel essai dans {delay} s "
+                          f"({overload_waits}/{len(OVERLOAD_WAITS_S)})…")
+                else:
                     raise self._explain(exc) from None
-                print(f"  Limite par minute de Gemini atteinte : nouvel essai dans {delay:.0f} s…")
                 self.sleep(delay)
         text = response.text or ""
         if not text.strip():

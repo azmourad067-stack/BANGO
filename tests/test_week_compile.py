@@ -113,3 +113,17 @@ def test_compile(project):
     assert srt.startswith("1\n00:00:06,")
     assert srt.count("I am Bongo the gorilla.") == 2
     assert (folder / "thumb.png").is_file() and not (folder / "intro.mp4").exists()
+
+
+def test_duration_advice(project):
+    from bongo.week import duration_advice
+
+    for ep_id, est, real in [(1, 200, 250), (2, 210, 255)]:
+        folder = episode_dir(project, ep_id)
+        folder.mkdir(parents=True)
+        (folder / "qa.json").write_text(json.dumps({"duration_s": real, "steps": {"script": {"estimated_duration_s": est}}}))
+    advice = duration_advice(project, [1, 2])
+    assert "1.62" in advice and "123%" in advice
+    (episode_dir(project, 2) / "qa.json").write_text(json.dumps({"duration_s": 210, "steps": {"script": {"estimated_duration_s": 205}}}))
+    (episode_dir(project, 1) / "qa.json").write_text(json.dumps({"duration_s": 200, "steps": {"script": {"estimated_duration_s": 205}}}))
+    assert duration_advice(project, [1, 2]) is None

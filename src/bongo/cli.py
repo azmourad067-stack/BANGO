@@ -112,7 +112,7 @@ def _date(text: str):
 
 
 def cmd_build_week(args: argparse.Namespace) -> int:
-    from bongo.week import build_week, speaking_rate
+    from bongo.week import build_week, duration_advice
 
     root = _root()
     results = build_week(root, _date(args.start), force=args.force)
@@ -120,14 +120,9 @@ def cmd_build_week(args: argparse.Namespace) -> int:
     labels = {"ok": "OK", "warning": "OK avec avertissements", "error": "BLOQUÉ", "non fabriqué": "non fabriqué"}
     for ep_id, status in results.items():
         print(f"  Épisode {ep_id:>2} : {labels.get(status, status)}")
-    rate = speaking_rate(root, list(results))
-    if rate:
-        from bongo.config import load_config
-
-        est = load_config(root).qa.estimate_words_per_s
-        if abs(rate - est) / est > 0.15:
-            print(f"\nÀ noter : les voix disent {rate:.2f} mots/s ; config.yaml estime {est:g} "
-                  f"(qa: estimate_words_per_s). Mets {rate:.2f} pour des durées estimées plus justes.")
+    advice = duration_advice(root, list(results))
+    if advice:
+        print(f"\n{advice}")
     from bongo.report import week_dir
 
     print(f"\nOuvre le rapport : {week_dir(root, _date(args.start)) / 'report.html'}")
@@ -264,7 +259,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     import os
+    import warnings
 
+    # Avertissements techniques de PyTorch (Kokoro), sans conséquence et incompréhensibles
+    warnings.filterwarnings("ignore", module=r"torch(\.|$)")
     # Avertissement sans conséquence sous Windows (cache des modèles sans liens symboliques)
     os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
     for stream in (sys.stdout, sys.stderr):

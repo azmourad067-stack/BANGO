@@ -125,3 +125,36 @@ def test_daily_quota_stops_immediately():
     client.sleep = lambda s: pytest.fail("ne doit pas attendre")
     with pytest.raises(BongoError, match="Quota"):
         client.complete("sys", [("user", "hi")])
+
+
+def test_overload_waits_then_succeeds():
+    slept = []
+
+    class Resp:
+        text = "{}"
+
+    class Models:
+        n = 0
+
+        def generate_content(self, **kw):
+            Models.n += 1
+            if Models.n <= 2:
+                raise _Err(503, "503 UNAVAILABLE. The model is overloaded.")
+            return Resp()
+
+    google = pytest.importorskip("google.genai")
+    client = GeminiClient.__new__(GeminiClient)
+    client._genai = google
+    client.client = type("C", (), {"models": Models()})()
+    client.model_name, client.temperature, client.seed = "m", 0.7, 1
+    client.sleep = slept.append
+    assert client.complete("sys", [("user", "hi")]) == "{}"
+    assert slept == [20, 45]
+
+
+def test_is_overloaded():
+    from bongo.script_gen import is_overloaded
+
+    assert is_overloaded(_Err(503, "x")) and is_overloaded(_Err(500, "x"))
+    assert is_overloaded(Exception("503 UNAVAILABLE"))
+    assert not is_overloaded(_Err(400, "bad request"))
