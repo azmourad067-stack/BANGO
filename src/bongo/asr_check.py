@@ -32,12 +32,44 @@ def load_whisper(model: str = "small.en", device: str = "cpu", compute_type: str
         ) from None
 
     def transcribe(path: Path) -> str:
+        # On décode nous-mêmes (WAV -> 16 kHz) : évite le lecteur audio de faster-whisper (PyAV),
+        # dont certaines versions sont incompatibles.
         segments, _info = whisper.transcribe(
-            str(path), language="en", beam_size=5, condition_on_previous_text=False, vad_filter=False
+            load_for_whisper(path), language="en", beam_size=5, condition_on_previous_text=False, vad_filter=False
         )
         return " ".join(seg.text.strip() for seg in segments).strip()
 
     return transcribe
+
+
+WHISPER_RATE = 16_000
+
+
+def resample(audio, rate: int, target: int = WHISPER_RATE):
+    """Rééchantillonne un signal mono float32."""
+    import numpy as np
+
+    if rate == target or len(audio) == 0:
+        return audio.astype(np.float32)
+    try:
+        from math import gcd
+
+        from scipy.signal import resample_poly
+
+        g = gcd(rate, target)
+        return resample_poly(audio, target // g, rate // g).astype(np.float32)
+    except ImportError:
+        n = int(round(len(audio) * target / rate))
+        x_new = np.linspace(0, len(audio) - 1, n)
+        return np.interp(x_new, np.arange(len(audio)), audio).astype(np.float32)
+
+
+def load_for_whisper(path: Path):
+    """WAV 16 bits -> signal mono float32 à 16 kHz, comme l'attend Whisper."""
+    from bongo.tts import read_wav
+
+    audio, rate = read_wav(path)
+    return resample(audio, rate)
 
 
 def _same(a: str, b: str) -> bool:

@@ -66,3 +66,13 @@ def test_real_rhubarb(tmp_path):
     cues = run_rhubarb(rhubarb_path(ROOT), line.wav, line.txt, tmp_path / "raw.json")
     assert cues and cues[0]["start"] == 0
     assert {c["value"] for c in cues} <= set("ABCDEFGHX")
+
+
+def test_load_for_whisper(tmp_path):
+    from bongo.asr_check import load_for_whisper
+
+    t = np.arange(24_000) / 24_000
+    write_wav(tmp_path / "a.wav", (0.5 * np.sin(2 * np.pi * 440 * t)).astype(np.float32))
+    audio = load_for_whisper(tmp_path / "a.wav")
+    assert audio.dtype == np.float32 and abs(len(audio) - 16_000) <= 1
+    assert 0.4 < np.abs(audio).max() < 0.6
