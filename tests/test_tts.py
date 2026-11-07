@@ -36,3 +36,13 @@ def test_voices_are_american():
 def test_kokoro_missing_message():
     with pytest.raises(BongoError, match="pip install"):
         load_kokoro()
+
+
+def test_voice_blends(tmp_path):
+    from bongo.tts import is_valid_voice
+
+    assert is_valid_voice("am_michael") and is_valid_voice("am_michael+am_puck")
+    assert not is_valid_voice("am_michael+bf_emma") and not is_valid_voice("dragon")
+    page = preview_voices("Hi", tmp_path, 0.85, ["am_liam+af_heart"], synth=fake_synth, log=lambda m: None)
+    assert "mélange" in page.read_text(encoding="utf-8")
+    assert (page.parent / "am_liam+af_heart.wav").is_file()

@@ -106,6 +106,12 @@ def run_checks(root: Path) -> list[Check]:
     # Configuration et programme
     try:
         config = load_config(root)
+        from bongo.tts import is_valid_voice
+
+        bad = sorted(n for n, vc in config.voices.items() if PLACEHOLDER not in vc.voice and not is_valid_voice(vc.voice))
+        if bad:
+            add(Check("Voix inconnues", MISSING, ", ".join(f"{n}={config.voices[n].voice}" for n in bad),
+                      "Corrige le nom dans config.yaml (voir la page d'écoute de `voices`)."))
         to_choose = sorted(n for n, vc in config.voices.items() if PLACEHOLDER in vc.voice)
         if to_choose:
             add(Check("Voix (config.yaml)", WARN, f"à choisir : {', '.join(to_choose)}",

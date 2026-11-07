@@ -62,7 +62,8 @@ class KokoroEngine:
     def __call__(self, text: str, voice: str, speed: float) -> np.ndarray:
         chunks = []
         phonemes = []
-        for result in self.pipeline(text, voice=voice, speed=speed):
+        # « am_michael+am_puck » = mélange à parts égales de deux voix (syntaxe Kokoro : virgule)
+        for result in self.pipeline(text, voice=voice.replace("+", ","), speed=speed):
             phonemes.append(str(getattr(result, "phonemes", "") or ""))
             audio = result.audio if hasattr(result, "audio") else result[2]
             if audio is not None:
@@ -73,6 +74,12 @@ class KokoroEngine:
         if not chunks:
             raise BongoError(f"Kokoro n'a produit aucun son pour « {text} » avec la voix {voice}.")
         return np.concatenate(chunks)
+
+
+def is_valid_voice(voice: str) -> bool:
+    """Une voix américaine, ou un mélange de voix américaines (« am_michael+am_puck »)."""
+    parts = voice.split("+")
+    return 1 <= len(parts) <= 3 and all(p in AMERICAN_VOICES for p in parts)
 
 
 def load_kokoro() -> KokoroEngine:
@@ -132,10 +139,11 @@ def preview_voices(
 ) -> Path:
     """Fait dire `text` par chaque voix et écrit une page d'écoute. Renvoie le chemin de la page."""
     voices = list(voices)
-    unknown = [v for v in voices if v not in AMERICAN_VOICES]
+    unknown = [v for v in voices if not is_valid_voice(v)]
     if unknown:
         raise BongoError(
-            f"Voix inconnue(s) : {', '.join(unknown)}. Voix américaines disponibles : {', '.join(AMERICAN_VOICES)}"
+            f"Voix inconnue(s) : {', '.join(unknown)}. Voix américaines disponibles : {', '.join(AMERICAN_VOICES)} "
+            "(on peut en mélanger deux avec +, par exemple am_michael+am_puck)."
         )
     synth = synth or load_kokoro()
     folder = out_dir / f"{_slug(text)}_x{speed:g}"
@@ -144,7 +152,9 @@ def preview_voices(
         log(f"  [{i}/{len(voices)}] {voice}")
         audio = synth(text, voice, speed)
         write_wav(folder / f"{voice}.wav", audio)
-        kind = "féminine" if voice.startswith("af_") else "masculine"
+        parts = voice.split("+")
+        kinds = {"féminine" if v.startswith("af_") else "masculine" for v in parts}
+        kind = ("mélange " if len(parts) > 1 else "") + " / ".join(sorted(kinds))
         rows.append(
             f'<tr><td><b>{voice}</b></td><td>{kind}</td><td>{len(audio) / SAMPLE_RATE:.1f} s</td>'
             f'<td><audio controls preload="none" src="{voice}.wav"></audio></td></tr>'
