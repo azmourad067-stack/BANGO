@@ -94,7 +94,7 @@ def test_pronounce(project):
     html = page.read_text(encoding="utf-8")
     assert "frog.wav" in html and "/frog!/" in html
     assert html.count("à écouter") == 1
-    assert synth.calls[0][1:] == ("am_michael", 0.85)
+    assert synth.calls[0][1:] == ("am_liam", 0.85)
     with pytest.raises(BongoError, match="absent"):
         pronounce_words(project, synth=synth, transcriber=None, words=["dragon"], **QUIET)
 

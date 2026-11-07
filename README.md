@@ -97,7 +97,7 @@ Relancer la commande réutilise tout ce qui est déjà fait.
 
 ## Voix
 
-Une voix est déjà choisie pour chaque personnage dans `config.yaml` (Bongo : `am_michael`).
+Une voix est choisie pour chaque personnage dans `config.yaml` (Bongo : `am_liam`, choisie à l'écoute).
 Pour les réécouter ou en essayer d'autres : `python -m bongo voices`, puis ouvrir `out\voices\...\ecoute.html`.
 Changer une voix uniquement avant le 1er décembre : ensuite, Bongo doit sonner pareil tous les jours.
 

@@ -7,7 +7,7 @@ stage: {ground: 0.96, bongo_height: 0.62, friend_height: 0.34, card_top: 0.06, c
 voices:
   # Choisies d'après les notes de qualité de Kokoro (VOICES.md) et le caractère de chaque personnage.
   # FIGÉES dès la publication du premier épisode (1er décembre).
-  bongo:    {voice: "am_michael", speed: 0.85}   # masculine, grave et chaleureuse
+  bongo:    {voice: "am_liam",    speed: 0.85}   # masculine, légère et chaleureuse (choisie à l'écoute)
   parrot:   {voice: "af_bella",   speed: 0.90}   # vive, il répète tout
   frog:     {voice: "am_puck",    speed: 0.90}   # joueur, saute partout
   elephant: {voice: "af_heart",   speed: 0.90}   # grande et douce
