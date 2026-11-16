@@ -12,7 +12,7 @@ import pandas as pd
 from .backtest import BacktestResult, run_backtest
 from .data import load_matches, normalize
 from .elo import SurfaceElo
-from .odds import expected_value, fair_probabilities, kelly_fraction
+from .odds import expected_value, fair_probabilities, kelly_fraction, overround
 from .strategy import MODELS, StrategyConfig
 from .synthetic import generate
 
@@ -122,7 +122,7 @@ def _build_elo(files) -> SurfaceElo:
     elo = SurfaceElo()
     for row in load_matches(files).itertuples(index=False):
         if row.completed:
-            elo.update(row.winner, row.loser, row.surface)
+            elo.update(row.winner, row.loser, row.surface, row.wrank, row.lrank)
     return elo
 
 
@@ -159,6 +159,28 @@ def cmd_predict(args) -> int:
     return 0
 
 
+def cmd_value(args) -> int:
+    """Compare la cote d'un bookmaker au prix juste de Pinnacle pour un match à venir."""
+    ra, rb = args.ref
+    oa, ob = args.odds
+    fa, fb = fair_probabilities(ra, rb)
+    print(f"\nPrix juste (Pinnacle sans marge) : A {1 / fa:.2f} ({fa:.1%})  |  B {1 / fb:.2f} ({fb:.1%})")
+    print(f"Marge de votre bookmaker : {overround(oa, ob):.1%}")
+    best = None
+    for side, prob, odds in (("A", fa, oa), ("B", fb, ob)):
+        ev = expected_value(prob, odds)
+        print(f"  Joueur {side} à {odds:.2f} : valeur {ev:+.1%}")
+        if args.min_edge <= ev <= 0.20 and (best is None or ev > best[2]):
+            best = (side, odds, ev, prob)
+    if best:
+        side, odds, ev, prob = best
+        stake = min(kelly_fraction(prob, odds) * 0.25, 0.02) * args.bankroll
+        print(f"\n→ Pari à valeur : joueur {side} à {odds:.2f} (valeur {ev:+.1%}). Mise conseillée : {stake:.2f} €")
+    else:
+        print(f"\n→ Pas de pari : aucune valeur entre {args.min_edge:.0%} et 20 %.")
+    return 0
+
+
 def cmd_ranking(args) -> int:
     elo = _build_elo(args.files)
     print(f"\nClassement Elo{' ' + args.surface if args.surface else ''} :")
@@ -173,7 +195,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     bt = sub.add_parser("backtest", help="Rejoue une stratégie sur l'historique.")
     bt.add_argument("files", nargs="+", help="Fichiers tennis-data.co.uk (.xlsx ou .csv)")
-    bt.add_argument("--model", choices=MODELS, default="elo")
+    bt.add_argument("--model", choices=MODELS, default="market")
     bt.add_argument("--price", default="b365", choices=["b365", "avg", "max", "ps"], help="Cote utilisée pour parier")
     bt.add_argument("--haircut", type=float, default=1.0, help="Ex. 0.97 pour simuler un opérateur français")
     bt.add_argument("--min-edge", type=float, default=0.03)
@@ -204,6 +226,13 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--min-edge", type=float, default=0.03)
     pr.add_argument("--bankroll", type=float, default=1000.0)
     pr.set_defaults(func=cmd_predict)
+
+    va = sub.add_parser("value", help="Compare une cote à celle de Pinnacle pour un match à venir.")
+    va.add_argument("--ref", nargs=2, type=float, required=True, metavar=("A", "B"), help="Cotes Pinnacle A et B")
+    va.add_argument("--odds", nargs=2, type=float, required=True, metavar=("A", "B"), help="Cotes de votre bookmaker")
+    va.add_argument("--min-edge", type=float, default=0.02)
+    va.add_argument("--bankroll", type=float, default=1000.0)
+    va.set_defaults(func=cmd_value)
 
     rk = sub.add_parser("ranking", help="Classement Elo actuel.")
     rk.add_argument("files", nargs="+")

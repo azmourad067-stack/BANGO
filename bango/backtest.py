@@ -65,7 +65,7 @@ def run_backtest(
         elo_ready = (
             elo.matches_played(row.winner) >= cfg.min_matches and elo.matches_played(row.loser) >= cfg.min_matches
         )
-        elo_w = elo.predict(row.winner, row.loser, surface, best_of) if elo_ready else None
+        elo_w = elo.predict(row.winner, row.loser, surface, best_of, row.wrank, row.lrank) if elo_ready else None
 
         market_w = None
         if _valid(row.ps_w) and _valid(row.ps_l):
@@ -119,7 +119,7 @@ def run_backtest(
                             }
                         )
 
-        elo.update(row.winner, row.loser, surface)
+        elo.update(row.winner, row.loser, surface, row.wrank, row.lrank)
 
     bets_df = pd.DataFrame(bets)
     return BacktestResult(

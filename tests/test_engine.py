@@ -161,3 +161,11 @@ def test_cli_backtest_and_predict(tmp_path, capsys):
 
     assert main(["predict", str(path), "--a", "Inconnu Z.", "--b", "Joueur001 X."]) == 1
     assert main(["ranking", str(path), "--top", "5"]) == 0
+
+
+def test_cli_value(capsys):
+    assert main(["value", "--ref", "1.80", "2.10", "--odds", "1.95", "1.90"]) == 0
+    out = capsys.readouterr().out
+    assert "Pari à valeur : joueur A à 1.95" in out
+    assert main(["value", "--ref", "1.80", "2.10", "--odds", "1.75", "2.05"]) == 0
+    assert "Pas de pari" in capsys.readouterr().out
