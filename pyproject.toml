@@ -7,7 +7,7 @@ name = "bango"
 version = "0.1.0"
 description = "Moteur de value betting pour le tennis : Elo par surface, détection de valeur, backtest."
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24", "pandas>=2.0", "openpyxl>=3.1"]
+dependencies = ["numpy>=1.24", "pandas>=2.0", "openpyxl>=3.1", "requests>=2.31"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

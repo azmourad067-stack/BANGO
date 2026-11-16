@@ -74,7 +74,19 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-Trois onglets : **Analyser un match** (cote de votre bookmaker contre prix juste Pinnacle), **Backtest** (glissez vos fichiers de saison dans la barre latérale) et **Classement Elo**.
+Quatre onglets :
+
+- **Programme** : matchs ATP/WTA à venir avec les cotes en direct de Pinnacle et des bookmakers français (Winamax, Betclic, Unibet, NetBet, Parions Sport, PMU), récupérées via [The Odds API](https://the-odds-api.com). Les paris à valeur et la mise conseillée sont calculés automatiquement.
+- **Analyser un match** : saisie manuelle des cotes.
+- **Backtest** : glissez vos fichiers de saison dans la barre latérale.
+- **Classement Elo**.
+
+### Clé The Odds API
+
+L'onglet Programme a besoin d'une clé gratuite (environ 500 requêtes par mois) créée sur <https://the-odds-api.com>. Chaque actualisation coûte 2 requêtes par tournoi en cours (régions `eu` pour Pinnacle et `fr` pour les opérateurs français) ; les cotes sont gardées 10 minutes.
+
+- En local : copiez `.streamlit/secrets.toml.example` en `.streamlit/secrets.toml` (non versionné) et collez-y votre clé, ou définissez la variable d'environnement `ODDS_API_KEY`.
+- Sur Streamlit Community Cloud : **Settings → Secrets**, puis ajoutez `ODDS_API_KEY = "votre-cle"`.
 
 ### Déployer sur Streamlit Community Cloud
 

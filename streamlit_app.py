@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import io
+import os
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
@@ -10,6 +12,7 @@ import streamlit as st
 from bango.backtest import run_backtest
 from bango.data import normalize
 from bango.elo import SurfaceElo
+from bango.schedule import OddsApiClient, OddsApiError, UpcomingMatch, match_player
 from bango.strategy import StrategyConfig
 from bango.value import assess_value
 
@@ -49,6 +52,21 @@ def build_elo(_matches: pd.DataFrame, key: str) -> SurfaceElo:
     return elo
 
 
+@st.cache_data(ttl=600, show_spinner="Récupération du programme et des cotes…")
+def fetch_schedule(api_key: str, tour: str) -> tuple[list[UpcomingMatch], str | None]:
+    client = OddsApiClient(api_key)
+    matches = client.upcoming_matches(tour=tour, regions="eu,fr")
+    return matches, client.requests_remaining
+
+
+def configured_api_key() -> str:
+    try:
+        key = st.secrets.get("ODDS_API_KEY", "")
+    except Exception:  # pas de fichier de secrets en local
+        key = ""
+    return key or os.environ.get("ODDS_API_KEY", "")
+
+
 def pct(x: float, signed: bool = True) -> str:
     return f"{x * 100:+.1f} %" if signed else f"{x * 100:.1f} %"
 
@@ -79,7 +97,104 @@ with st.sidebar:
 st.title("BANGO")
 st.caption("Value betting tennis : ne parier que lorsque la cote paie plus que le risque réel.")
 
-tab_value, tab_backtest, tab_elo = st.tabs(["Analyser un match", "Backtest", "Classement Elo"])
+tab_schedule, tab_value, tab_backtest, tab_elo = st.tabs(
+    ["Programme", "Analyser un match", "Backtest", "Classement Elo"]
+)
+
+# --- Onglet 0 : programme et cotes en direct -------------------------------
+
+PARIS = ZoneInfo("Europe/Paris")
+JOURS = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
+
+with tab_schedule:
+    api_key = configured_api_key()
+    if not api_key:
+        st.info(
+            "Le programme des matchs et les cotes viennent de **The Odds API** (offre gratuite d'environ "
+            "500 requêtes par mois). Créez une clé sur https://the-odds-api.com, puis ajoutez-la dans les "
+            "secrets de l'application sous le nom `ODDS_API_KEY`, ou collez-la ci-dessous pour cette session."
+        )
+        api_key = st.text_input("Clé The Odds API", type="password")
+
+    if api_key:
+        c1, c2, c3 = st.columns([1, 1, 2])
+        tour = c1.radio("Circuit", ["atp", "wta"], format_func=str.upper, horizontal=True)
+        if c2.button("Actualiser les cotes", help="Les cotes sont gardées 10 minutes pour économiser votre quota."):
+            fetch_schedule.clear()
+        try:
+            upcoming, remaining = fetch_schedule(api_key, tour)
+        except OddsApiError as exc:
+            st.error(str(exc))
+            upcoming, remaining = [], None
+        except Exception as exc:  # réseau indisponible, réponse inattendue
+            st.error(f"Impossible de joindre The Odds API : {exc}")
+            upcoming, remaining = [], None
+        if remaining is not None:
+            c3.caption(f"Requêtes restantes ce mois-ci : {remaining}")
+
+        if upcoming:
+            all_books = {k: b.title for m in upcoming for k, b in m.books.items() if k != "pinnacle"}
+            default_books = [k for k in all_books if k.endswith("_fr")]
+            c4, c5, c6 = st.columns([2, 1, 1])
+            my_books = c4.multiselect(
+                "Mes bookmakers",
+                sorted(all_books),
+                default=default_books,
+                format_func=lambda k: all_books[k],
+                help="La meilleure cote de chaque joueur est cherchée parmi ces bookmakers.",
+            )
+            sched_edge = c5.slider("Valeur minimale", 0.0, 0.10, 0.02, 0.005, format="%.3f", key="sched_edge")
+            sched_bankroll = c6.number_input("Bankroll (€)", min_value=1.0, value=1000.0, step=50.0, key="sched_bk")
+            only_value = st.toggle("Afficher seulement les paris à valeur", value=False)
+
+            elo = build_elo(matches, f"{len(matches)}-{matches['date'].max()}") if matches is not None else None
+            known = [n for n, _, m in elo.top(100_000) if m >= 10] if elo else []
+
+            rows = []
+            no_reference = 0
+            for m in upcoming:
+                res = m.assess(my_books, min_edge=sched_edge, bankroll=sched_bankroll)
+                if res is None:
+                    no_reference += 1
+                    continue
+                if only_value and not res.pick:
+                    continue
+                best_a, best_b = m.best_odds(my_books)
+                a, b = res.sides
+                start = m.start.astimezone(PARIS)
+                row = {
+                    "Heure": f"{JOURS[start.weekday()]} {start:%d/%m %H:%M}",
+                    "Match": f"{m.player_a} – {m.player_b}",
+                    "Pari conseillé": (
+                        f"{res.pick.label} à {res.pick.offered_odds:.2f}" if res.pick else "—"
+                    ),
+                    "Mise": f"{res.stake:.2f} €" if res.pick else "",
+                    "Valeur A": pct(a.edge),
+                    "Valeur B": pct(b.edge),
+                    "Pinnacle": f"{m.reference.odds_a:.2f} / {m.reference.odds_b:.2f}",
+                    "Meilleure cote A": f"{best_a.odds_a:.2f} ({best_a.title})",
+                    "Meilleure cote B": f"{best_b.odds_b:.2f} ({best_b.title})",
+                    "Tournoi": m.tournament,
+                }
+                if elo:
+                    ea, eb = match_player(m.player_a, known), match_player(m.player_b, known)
+                    row["Elo A"] = pct(elo.predict(ea, eb, m.surface), signed=False) if ea and eb else "n/d"
+                rows.append(row)
+
+            n_value = sum(1 for r in rows if r["Pari conseillé"] != "—")
+            st.markdown(f"**{len(rows)} matchs analysés, {n_value} pari(s) à valeur.**")
+            if rows:
+                st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+            if no_reference:
+                st.caption(
+                    f"{no_reference} match(s) ignoré(s) : pas de cote Pinnacle ou aucune cote chez vos bookmakers."
+                )
+            st.caption(
+                "Les cotes bougent vite : vérifiez toujours la cote chez votre bookmaker avant de parier. "
+                "La colonne Elo n'apparaît que si des saisons sont chargées, à titre indicatif."
+            )
+        elif remaining is not None:
+            st.info("Aucun match ATP/WTA avec des cotes pour le moment.")
 
 # --- Onglet 1 : analyse d'un match ------------------------------------------
 
