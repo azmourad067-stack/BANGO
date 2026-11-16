@@ -66,3 +66,20 @@ python -m bango ranking data/*.xlsx --surface Clay --top 20
 - Les bookmakers grand public limitent rapidement les comptes gagnants.
 - Le modèle ignore blessures, fatigue, motivation et conditions de jeu. Les valeurs supérieures à 20 % sont écartées, car elles viennent presque toujours de là.
 - Un bon backtest ne garantit pas les résultats futurs.
+
+## Application web (Streamlit)
+
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+Trois onglets : **Analyser un match** (cote de votre bookmaker contre prix juste Pinnacle), **Backtest** (glissez vos fichiers de saison dans la barre latérale) et **Classement Elo**.
+
+### Déployer sur Streamlit Community Cloud
+
+1. Connectez-vous sur <https://share.streamlit.io> avec votre compte GitHub.
+2. **Create app** → choisissez le dépôt `BANGO`, la branche, et le fichier `streamlit_app.py`.
+3. **Deploy**. Les dépendances sont lues dans `requirements.txt`.
+
+Les fichiers de données ne sont pas dans le dépôt : chaque utilisateur charge ses saisons depuis la barre latérale.

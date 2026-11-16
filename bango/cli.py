@@ -12,9 +12,10 @@ import pandas as pd
 from .backtest import BacktestResult, run_backtest
 from .data import load_matches, normalize
 from .elo import SurfaceElo
-from .odds import expected_value, fair_probabilities, kelly_fraction, overround
+from .odds import expected_value, fair_probabilities, kelly_fraction
 from .strategy import MODELS, StrategyConfig
 from .synthetic import generate
+from .value import assess_value
 
 LABELS = {
     "paris": "Paris",
@@ -161,21 +162,21 @@ def cmd_predict(args) -> int:
 
 def cmd_value(args) -> int:
     """Compare la cote d'un bookmaker au prix juste de Pinnacle pour un match à venir."""
-    ra, rb = args.ref
-    oa, ob = args.odds
-    fa, fb = fair_probabilities(ra, rb)
-    print(f"\nPrix juste (Pinnacle sans marge) : A {1 / fa:.2f} ({fa:.1%})  |  B {1 / fb:.2f} ({fb:.1%})")
-    print(f"Marge de votre bookmaker : {overround(oa, ob):.1%}")
-    best = None
-    for side, prob, odds in (("A", fa, oa), ("B", fb, ob)):
-        ev = expected_value(prob, odds)
-        print(f"  Joueur {side} à {odds:.2f} : valeur {ev:+.1%}")
-        if args.min_edge <= ev <= 0.20 and (best is None or ev > best[2]):
-            best = (side, odds, ev, prob)
-    if best:
-        side, odds, ev, prob = best
-        stake = min(kelly_fraction(prob, odds) * 0.25, 0.02) * args.bankroll
-        print(f"\n→ Pari à valeur : joueur {side} à {odds:.2f} (valeur {ev:+.1%}). Mise conseillée : {stake:.2f} €")
+    res = assess_value(*args.ref, *args.odds, min_edge=args.min_edge, bankroll=args.bankroll)
+    a, b = res.sides
+    print(
+        f"\nPrix juste (Pinnacle sans marge) : A {a.fair_odds:.2f} ({a.fair_probability:.1%})"
+        f"  |  B {b.fair_odds:.2f} ({b.fair_probability:.1%})"
+    )
+    print(f"Marge de votre bookmaker : {res.bookmaker_margin:.1%}")
+    for side in res.sides:
+        print(f"  Joueur {side.label} à {side.offered_odds:.2f} : valeur {side.edge:+.1%}")
+    if res.pick:
+        p = res.pick
+        print(
+            f"\n→ Pari à valeur : joueur {p.label} à {p.offered_odds:.2f} (valeur {p.edge:+.1%})."
+            f" Mise conseillée : {res.stake:.2f} €"
+        )
     else:
         print(f"\n→ Pas de pari : aucune valeur entre {args.min_edge:.0%} et 20 %.")
     return 0
