@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from .odds import expected_value, fair_probabilities, kelly_fraction
 from .strategy import MODELS, StrategyConfig
 from .synthetic import generate
 from .value import assess_value
+from .schedule import DEFAULT_LEAGUES, FRENCH_BOOKS, SPORTS, OddsApiClient, OddsApiError
+from . import journal as journal_mod
 
 LABELS = {
     "paris": "Paris",
@@ -186,6 +189,50 @@ def cmd_value(args) -> int:
     return 0
 
 
+def select_competitions(client: OddsApiClient, sports: list[str], leagues: list[str]) -> list[dict]:
+    """Tous les tournois de tennis en cours, et les ligues demandées de football et de basket."""
+    chosen = []
+    for c in client.competitions():
+        if c["sport"] not in sports:
+            continue
+        if c["sport"] == "tennis" or c["key"] in leagues:
+            chosen.append(c)
+    return chosen
+
+
+def cmd_scan(args) -> int:
+    """Relève les cotes, affiche les paris à valeur et les ajoute au journal."""
+    key = os.environ.get("ODDS_API_KEY", "")
+    if not key:
+        raise ValueError("Définissez la variable d'environnement ODDS_API_KEY.")
+    try:
+        client = OddsApiClient(key)
+        comps = select_competitions(client, args.sports, args.leagues)
+        print(f"{len(comps)} compétition(s) relevée(s), coût estimé : {len(comps)} requête(s).")
+        matches = client.upcoming([c["key"] for c in comps])
+    except OddsApiError as exc:
+        raise ValueError(str(exc)) from exc
+
+    journal, new = journal_mod.record(matches, args.books, args.journal)
+    print(f"{len(matches)} matchs analysés, {new} nouvelle(s) opportunité(s) ajoutée(s) à {args.journal}.")
+    if client.requests_remaining is not None:
+        print(f"Requêtes restantes ce mois-ci : {client.requests_remaining}")
+
+    picks = []
+    for m in matches:
+        res = m.assess(args.books, min_edge=args.min_edge, bankroll=args.bankroll)
+        if res and res.pick:
+            picks.append((m, res))
+    print(f"\nParis à valeur (≥ {args.min_edge:.0%}) : {len(picks)}")
+    for m, res in picks:
+        p = res.pick
+        print(
+            f"  {m.start:%d/%m %H:%M} UTC  [{SPORTS.get(m.sport, m.sport)}] {m.label} : {p.label} à {p.offered_odds:.2f}"
+            f" chez {p.bookmaker} (valeur {p.edge:+.1%}, mise {res.stake:.2f} €)"
+        )
+    return 0
+
+
 def cmd_ranking(args) -> int:
     elo = _build_elo(args.files)
     print(f"\nClassement Elo{' ' + args.surface if args.surface else ''} :")
@@ -239,6 +286,15 @@ def build_parser() -> argparse.ArgumentParser:
     va.add_argument("--min-edge", type=float, default=0.02)
     va.add_argument("--bankroll", type=float, default=1000.0)
     va.set_defaults(func=cmd_value)
+
+    sc = sub.add_parser("scan", help="Relève les cotes du jour et alimente le journal des opportunités.")
+    sc.add_argument("--sports", nargs="+", choices=list(SPORTS), default=list(SPORTS))
+    sc.add_argument("--leagues", nargs="+", default=list(DEFAULT_LEAGUES), help="Ligues de football et de basket")
+    sc.add_argument("--books", nargs="+", default=list(FRENCH_BOOKS), help="Vos bookmakers")
+    sc.add_argument("--journal", default="data/journal.csv")
+    sc.add_argument("--min-edge", type=float, default=0.02)
+    sc.add_argument("--bankroll", type=float, default=1000.0)
+    sc.set_defaults(func=cmd_scan)
 
     rk = sub.add_parser("ranking", help="Classement Elo actuel.")
     rk.add_argument("files", nargs="+")

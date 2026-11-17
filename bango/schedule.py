@@ -1,8 +1,11 @@
 """Programme des matchs à venir et cotes en direct via The Odds API (https://the-odds-api.com).
 
-Une clé gratuite (environ 500 requêtes par mois) suffit pour un usage personnel.
-Chaque appel de cotes coûte 1 requête par tournoi et par région : le programme
-complet d'une semaine de tennis consomme donc quelques requêtes seulement.
+Sports couverts : tennis (ATP, WTA), football et basket. Une clé gratuite
+(environ 500 requêtes par mois) suffit pour un usage léger.
+
+Coût : on demande Pinnacle et les opérateurs français par leur nom
+(paramètre ``bookmakers``, moins de 10 bookmakers), ce qui coûte 1 requête
+par compétition à chaque actualisation. La liste des compétitions est gratuite.
 """
 
 from __future__ import annotations
@@ -15,10 +18,28 @@ from typing import Any
 
 import requests
 
-from .value import ValueAssessment, assess_value
+from .value import ValueAssessment, assess_market
 
 API_URL = "https://api.the-odds-api.com/v4"
 REFERENCE_BOOK = "pinnacle"
+FRENCH_BOOKS = ("winamax_fr", "betclic_fr", "unibet_fr", "parionssport_fr", "pmu_fr", "netbet_fr")
+REQUEST_BOOKS = (REFERENCE_BOOK, *FRENCH_BOOKS)
+DRAW = "Draw"
+
+SPORTS = {"tennis": "Tennis", "football": "Football", "basket": "Basket"}
+_API_GROUPS = {"Tennis": "tennis", "Soccer": "football", "Basketball": "basket"}
+
+# Compétitions suivies par défaut (le tennis prend automatiquement les tournois en cours).
+DEFAULT_LEAGUES = (
+    "soccer_france_ligue_one",
+    "soccer_epl",
+    "soccer_spain_la_liga",
+    "soccer_italy_serie_a",
+    "soccer_germany_bundesliga",
+    "soccer_uefa_champs_league",
+    "basketball_nba",
+    "basketball_euroleague",
+)
 
 # Mots repérés dans le nom du tournoi pour en déduire la surface.
 CLAY_WORDS = (
@@ -33,8 +54,11 @@ GRASS_WORDS = ("wimbledon", "queen", "halle", "eastbourne", "s-hertogenbosch", "
 class BookOdds:
     key: str
     title: str
-    odds_a: float
-    odds_b: float
+    prices: dict[str, float]
+
+    # Accès pratiques pour un marché à deux issues.
+    def price(self, outcome: str) -> float | None:
+        return self.prices.get(outcome)
 
 
 @dataclass
@@ -43,9 +67,20 @@ class UpcomingMatch:
     tournament: str
     sport_key: str
     start: datetime
-    player_a: str
+    player_a: str  # équipe à domicile au football et au basket
     player_b: str
+    outcomes: list[str] = field(default_factory=list)
     books: dict[str, BookOdds] = field(default_factory=dict)
+
+    @property
+    def sport(self) -> str:
+        if self.sport_key.startswith("tennis"):
+            return "tennis"
+        if self.sport_key.startswith("soccer"):
+            return "football"
+        if self.sport_key.startswith("basketball"):
+            return "basket"
+        return "autre"
 
     @property
     def tour(self) -> str:
@@ -56,24 +91,41 @@ class UpcomingMatch:
         return guess_surface(self.tournament)
 
     @property
+    def label(self) -> str:
+        return f"{self.player_a} – {self.player_b}"
+
+    @property
     def reference(self) -> BookOdds | None:
         return self.books.get(REFERENCE_BOOK)
 
-    def best_odds(self, book_keys: list[str]) -> tuple[BookOdds | None, BookOdds | None]:
-        """Meilleure cote pour chaque joueur parmi les bookmakers choisis."""
-        pool = [b for k, b in self.books.items() if k in book_keys]
-        best_a = max(pool, key=lambda b: b.odds_a, default=None)
-        best_b = max(pool, key=lambda b: b.odds_b, default=None)
-        return best_a, best_b
+    def best_odds(self, book_keys: list[str]) -> dict[str, BookOdds]:
+        """Pour chaque issue, le bookmaker qui la paie le mieux parmi ceux choisis."""
+        best: dict[str, BookOdds] = {}
+        for key in book_keys:
+            book = self.books.get(key)
+            if not book:
+                continue
+            for outcome in self.outcomes:
+                price = book.price(outcome)
+                if price and (outcome not in best or price > best[outcome].price(outcome)):
+                    best[outcome] = book
+        return best
+
+    def outcome_label(self, outcome: str) -> str:
+        return "Match nul" if outcome == DRAW else outcome
 
     def assess(self, book_keys: list[str], min_edge: float = 0.02, bankroll: float = 1000.0) -> ValueAssessment | None:
         ref = self.reference
-        best_a, best_b = self.best_odds(book_keys)
-        if ref is None or best_a is None or best_b is None:
+        best = self.best_odds(book_keys)
+        if ref is None or any(o not in best or ref.price(o) is None for o in self.outcomes):
             return None
-        return assess_value(
-            ref.odds_a, ref.odds_b, best_a.odds_a, best_b.odds_b,
-            min_edge=min_edge, bankroll=bankroll, labels=(self.player_a, self.player_b),
+        return assess_market(
+            [ref.price(o) for o in self.outcomes],
+            [best[o].price(o) for o in self.outcomes],
+            [self.outcome_label(o) for o in self.outcomes],
+            bookmakers=[best[o].title for o in self.outcomes],
+            min_edge=min_edge,
+            bankroll=bankroll,
         )
 
 
@@ -103,25 +155,42 @@ class OddsApiClient:
             raise OddsApiError(f"Erreur The Odds API ({resp.status_code}) : {resp.text[:200]}")
         return resp.json()
 
-    def tennis_tournaments(self, tour: str | None = None) -> list[dict]:
-        """Tournois de tennis en cours ou à venir proposés par l'API (appel gratuit).
+    def competitions(self) -> list[dict]:
+        """Compétitions actives de tennis, football et basket (appel gratuit).
 
-        ``tour`` : "atp", "wta", ou None pour les deux circuits.
+        Chaque entrée reçoit un champ ``sport`` : "tennis", "football" ou "basket".
         """
-        sports = self._get("/sports")
-        out = [s for s in sports if s.get("group") == "Tennis" and s.get("active")]
-        if tour:
-            out = [s for s in out if s["key"].startswith(f"tennis_{tour}")]
+        out = []
+        for s in self._get("/sports"):
+            sport = _API_GROUPS.get(s.get("group", ""))
+            if sport and s.get("active") and not s.get("has_outrights"):
+                out.append({**s, "sport": sport})
         return out
 
-    def odds(self, sport_key: str, regions: str = "eu") -> list[dict]:
-        return self._get(f"/sports/{sport_key}/odds", regions=regions, markets="h2h", oddsFormat="decimal")
+    def tennis_tournaments(self, tour: str | None = None) -> list[dict]:
+        """Tournois de tennis en cours. ``tour`` : "atp", "wta", ou None pour les deux."""
+        out = [c for c in self.competitions() if c["sport"] == "tennis"]
+        if tour:
+            out = [c for c in out if c["key"].startswith(f"tennis_{tour}")]
+        return out
 
-    def upcoming_matches(self, tour: str | None = None, regions: str = "eu") -> list[UpcomingMatch]:
+    def odds(self, sport_key: str) -> list[dict]:
+        return self._get(
+            f"/sports/{sport_key}/odds",
+            bookmakers=",".join(REQUEST_BOOKS),
+            markets="h2h",
+            oddsFormat="decimal",
+        )
+
+    def upcoming(self, sport_keys: list[str]) -> list[UpcomingMatch]:
         matches: list[UpcomingMatch] = []
-        for sport in self.tennis_tournaments(tour):
-            matches.extend(parse_events(self.odds(sport["key"], regions)))
+        for key in sport_keys:
+            matches.extend(parse_events(self.odds(key)))
         return sorted(matches, key=lambda m: m.start)
+
+    def upcoming_matches(self, tour: str | None = None, regions: str | None = None) -> list[UpcomingMatch]:
+        """Matchs de tennis à venir (ATP, WTA ou les deux)."""
+        return self.upcoming([t["key"] for t in self.tennis_tournaments(tour)])
 
 
 def parse_events(events: list[dict]) -> list[UpcomingMatch]:
@@ -137,14 +206,18 @@ def parse_events(events: list[dict]) -> list[UpcomingMatch]:
             start=datetime.fromisoformat(ev["commence_time"].replace("Z", "+00:00")).astimezone(timezone.utc),
             player_a=a,
             player_b=b,
+            outcomes=[a, b],
         )
         for book in ev.get("bookmakers", []):
             h2h = next((mk for mk in book.get("markets", []) if mk.get("key") == "h2h"), None)
             if not h2h:
                 continue
-            prices = {o["name"]: o["price"] for o in h2h.get("outcomes", [])}
-            if a in prices and b in prices and prices[a] > 1 and prices[b] > 1:
-                m.books[book["key"]] = BookOdds(book["key"], book.get("title", book["key"]), prices[a], prices[b])
+            prices = {o["name"]: o["price"] for o in h2h.get("outcomes", []) if o.get("price", 0) > 1}
+            if DRAW in prices and DRAW not in m.outcomes:
+                m.outcomes = [a, DRAW, b]
+            m.books[book["key"]] = BookOdds(book["key"], book.get("title", book["key"]), prices)
+        # Un bookmaker qui ne cote pas toutes les issues ne peut pas servir.
+        m.books = {k: bk for k, bk in m.books.items() if all(o in bk.prices for o in m.outcomes)}
         matches.append(m)
     return matches
 

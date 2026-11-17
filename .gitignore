@@ -7,3 +7,4 @@ data/*.xlsx
 data/*.xls
 !data/README.md
 .streamlit/secrets.toml
+!data/journal.csv

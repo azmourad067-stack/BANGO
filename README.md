@@ -74,16 +74,17 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-Quatre onglets :
+Cinq onglets :
 
-- **Programme** : matchs ATP/WTA à venir avec les cotes en direct de Pinnacle et des bookmakers français (Winamax, Betclic, Unibet, NetBet, Parions Sport, PMU), récupérées via [The Odds API](https://the-odds-api.com). Les paris à valeur et la mise conseillée sont calculés automatiquement.
-- **Analyser un match** : saisie manuelle des cotes.
+- **Programme** : matchs à venir en tennis (ATP, WTA), football et basket, avec les cotes en direct de Pinnacle et des bookmakers français (Winamax, Betclic, Unibet, Parions Sport, PMU, NetBet), récupérées via [The Odds API](https://the-odds-api.com). Les paris à valeur et la mise conseillée sont calculés automatiquement. Au football, les trois issues (domicile, nul, extérieur) sont analysées.
+- **Journal** : les paris à valeur repérés jour après jour, par sport, pour mesurer combien d'opportunités chaque sport offre réellement.
+- **Analyser un match** : saisie manuelle des cotes (pratique pour les cotes boostées).
 - **Backtest** : glissez vos fichiers de saison dans la barre latérale.
 - **Classement Elo**.
 
 ### Clé The Odds API
 
-L'onglet Programme a besoin d'une clé gratuite (environ 500 requêtes par mois) créée sur <https://the-odds-api.com>. Chaque actualisation coûte 2 requêtes par tournoi en cours (régions `eu` pour Pinnacle et `fr` pour les opérateurs français) ; les cotes sont gardées 10 minutes.
+L'onglet Programme a besoin d'une clé gratuite (environ 500 requêtes par mois) créée sur <https://the-odds-api.com>. Chaque chargement coûte 1 requête par compétition choisie (tournoi de tennis en cours, ligue de football ou de basket). Rien n'est consommé tant que vous ne cliquez pas sur « Charger les cotes ».
 
 - En local : copiez `.streamlit/secrets.toml.example` en `.streamlit/secrets.toml` (non versionné) et collez-y votre clé, ou définissez la variable d'environnement `ODDS_API_KEY`.
 - Sur Streamlit Community Cloud : **Settings → Secrets**, puis ajoutez `ODDS_API_KEY = "votre-cle"`.
@@ -95,3 +96,15 @@ L'onglet Programme a besoin d'une clé gratuite (environ 500 requêtes par mois)
 3. **Deploy**. Les dépendances sont lues dans `requirements.txt`.
 
 Les fichiers de données ne sont pas dans le dépôt : chaque utilisateur charge ses saisons depuis la barre latérale.
+
+## Relevé quotidien automatique
+
+La commande `python -m bango scan` relève les cotes du jour, affiche les paris à valeur et les ajoute à `data/journal.csv` (tous les tournois de tennis en cours, plus les ligues de `DEFAULT_LEAGUES` : Ligue 1, Premier League, Liga, Serie A, Bundesliga, Ligue des champions, NBA, Euroligue). Coût : environ 10 à 14 requêtes par relevé, soit un relevé par jour avec la clé gratuite.
+
+Le fichier `.github/workflows/scan.yml` la lance chaque jour vers 10 h 37 (heure de Paris) et enregistre le journal dans le dépôt ; l'application Streamlit l'affiche dans l'onglet Journal. Pour l'activer :
+
+1. Ajoutez votre clé dans GitHub : **Settings → Secrets and variables → Actions → New repository secret**, nom `ODDS_API_KEY`.
+2. Fusionnez ce travail dans la branche par défaut (`main`) : GitHub ne lance les tâches planifiées que depuis celle-ci.
+3. Pour un premier relevé immédiat : onglet **Actions → Relevé des cotes → Run workflow**.
+
+Un relevé par jour ne voit les cotes qu'à un instant donné : le journal donne un minimum du nombre d'opportunités réelles.

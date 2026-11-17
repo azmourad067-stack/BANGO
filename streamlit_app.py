@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import os
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -12,11 +13,12 @@ import streamlit as st
 from bango.backtest import run_backtest
 from bango.data import normalize
 from bango.elo import SurfaceElo
-from bango.schedule import OddsApiClient, OddsApiError, UpcomingMatch, match_player
+from bango import journal as journal_mod
+from bango.schedule import DEFAULT_LEAGUES, SPORTS, OddsApiClient, OddsApiError, UpcomingMatch, match_player
 from bango.strategy import StrategyConfig
 from bango.value import assess_value
 
-st.set_page_config(page_title="BANGO · Value betting tennis", page_icon="🎾", layout="wide")
+st.set_page_config(page_title="BANGO · Value betting", page_icon="🎯", layout="wide")
 
 MODEL_LABELS = {
     "market": "Pinnacle comme référence (recommandé)",
@@ -52,11 +54,14 @@ def build_elo(_matches: pd.DataFrame, key: str) -> SurfaceElo:
     return elo
 
 
-@st.cache_data(ttl=600, show_spinner="Récupération du programme et des cotes…")
-def fetch_schedule(api_key: str, tour: str | None) -> tuple[list[UpcomingMatch], str | None]:
+@st.cache_data(ttl=3600, show_spinner="Liste des compétitions…")
+def fetch_competitions(api_key: str) -> list[dict]:
+    return OddsApiClient(api_key).competitions()  # appel gratuit
+
+
+def fetch_events(api_key: str, keys: tuple[str, ...]) -> tuple[list[UpcomingMatch], str | None]:
     client = OddsApiClient(api_key)
-    matches = client.upcoming_matches(tour=tour, regions="eu,fr")
-    return matches, client.requests_remaining
+    return client.upcoming(list(keys)), client.requests_remaining
 
 
 def configured_api_key() -> str:
@@ -98,16 +103,23 @@ with st.sidebar:
     )
 
 st.title("BANGO")
-st.caption("Value betting tennis : ne parier que lorsque la cote paie plus que le risque réel.")
+st.caption("Value betting : ne parier que lorsque la cote paie plus que le risque réel. Tennis, football, basket.")
 
-tab_schedule, tab_value, tab_backtest, tab_elo = st.tabs(
-    ["Programme", "Analyser un match", "Backtest", "Classement Elo"]
+tab_schedule, tab_journal, tab_value, tab_backtest, tab_elo = st.tabs(
+    ["Programme", "Journal", "Analyser un match", "Backtest", "Classement Elo"]
 )
 
-# --- Onglet 0 : programme et cotes en direct -------------------------------
+# --- Onglet : programme et cotes en direct ----------------------------------
 
 PARIS = ZoneInfo("Europe/Paris")
 JOURS = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
+JOURNAL_PATH = Path(__file__).resolve().parent / "data" / "journal.csv"
+
+
+def when(dt) -> str:
+    local = dt.astimezone(PARIS)
+    return f"{JOURS[local.weekday()]} {local:%d/%m %H:%M}"
+
 
 with tab_schedule:
     api_key = configured_api_key()
@@ -120,40 +132,71 @@ with tab_schedule:
         api_key = st.text_input("Clé The Odds API", type="password")
 
     if api_key:
-        c1, c2, c3 = st.columns([1, 1, 2])
-        tour = c1.radio(
-            "Circuit",
-            [None, "atp", "wta"],
-            format_func=lambda t: "ATP + WTA" if t is None else t.upper(),
-            horizontal=True,
-            help="Les deux circuits consomment environ deux fois plus de requêtes.",
-        )
-        if c2.button("Actualiser les cotes", help="Les cotes sont gardées 10 minutes pour économiser votre quota."):
-            fetch_schedule.clear()
         try:
-            upcoming, remaining = fetch_schedule(api_key, tour)
+            comps = fetch_competitions(api_key)
         except OddsApiError as exc:
             st.error(str(exc))
-            upcoming, remaining = [], None
+            comps = []
         except Exception as exc:  # réseau indisponible, réponse inattendue
             st.error(f"Impossible de joindre The Odds API : {exc}")
-            upcoming, remaining = [], None
+            comps = []
+
+        if comps:
+            c1, c2 = st.columns([1, 1])
+            sports = c1.multiselect("Sports", list(SPORTS), default=list(SPORTS), format_func=SPORTS.get)
+            tour = c2.radio(
+                "Tennis",
+                [None, "atp", "wta"],
+                format_func=lambda t: "ATP + WTA" if t is None else t.upper(),
+                horizontal=True,
+                disabled="tennis" not in sports,
+            )
+            leagues_available = {c["key"]: c["title"] for c in comps if c["sport"] in ("football", "basket")}
+            leagues = st.multiselect(
+                "Ligues de football et de basket",
+                sorted(leagues_available, key=lambda k: (not k.startswith("soccer"), leagues_available[k])),
+                default=[k for k in DEFAULT_LEAGUES if k in leagues_available],
+                format_func=leagues_available.get,
+                help="Chaque ligue coûte 1 requête par actualisation.",
+            )
+            chosen = [
+                c["key"]
+                for c in comps
+                if c["sport"] in sports
+                and (
+                    (c["sport"] == "tennis" and (tour is None or c["key"].startswith(f"tennis_{tour}")))
+                    or c["key"] in leagues
+                )
+            ]
+            c3, c4 = st.columns([1, 3])
+            if c3.button("Charger les cotes", type="primary", disabled=not chosen):
+                with st.spinner("Récupération des cotes…"):
+                    try:
+                        st.session_state["programme"] = fetch_events(api_key, tuple(chosen))
+                    except OddsApiError as exc:
+                        st.error(str(exc))
+                    except Exception as exc:
+                        st.error(f"Impossible de joindre The Odds API : {exc}")
+            c4.caption(
+                f"{len(chosen)} compétition(s) sélectionnée(s) : coût de {len(chosen)} requête(s) par chargement."
+            )
+
+        upcoming, remaining = st.session_state.get("programme", ([], None))
         if remaining is not None:
-            c3.caption(f"Requêtes restantes ce mois-ci : {remaining}")
+            st.caption(f"Requêtes restantes ce mois-ci : {remaining}")
 
         if upcoming:
             all_books = {k: b.title for m in upcoming for k, b in m.books.items() if k != "pinnacle"}
-            default_books = [k for k in all_books if k.endswith("_fr")]
-            c4, c5, c6 = st.columns([2, 1, 1])
-            my_books = c4.multiselect(
+            c5, c6, c7 = st.columns([2, 1, 1])
+            my_books = c5.multiselect(
                 "Mes bookmakers",
                 sorted(all_books),
-                default=default_books,
+                default=sorted(all_books),
                 format_func=lambda k: all_books[k],
-                help="La meilleure cote de chaque joueur est cherchée parmi ces bookmakers.",
+                help="Pour chaque issue, la meilleure cote est cherchée parmi ces bookmakers.",
             )
-            sched_edge = c5.slider("Valeur minimale", 0.0, 0.10, 0.02, 0.005, format="%.3f", key="sched_edge")
-            sched_bankroll = c6.number_input("Bankroll (€)", min_value=1.0, value=1000.0, step=50.0, key="sched_bk")
+            sched_edge = c6.slider("Valeur minimale", 0.0, 0.10, 0.02, 0.005, format="%.3f", key="sched_edge")
+            sched_bankroll = c7.number_input("Bankroll (€)", min_value=1.0, value=1000.0, step=50.0, key="sched_bk")
             only_value = st.toggle("Afficher seulement les paris à valeur", value=False)
 
             elo = build_elo(matches, f"{len(matches)}-{matches['date'].max()}") if matches is not None else None
@@ -168,27 +211,23 @@ with tab_schedule:
                     continue
                 if only_value and not res.pick:
                     continue
-                best_a, best_b = m.best_odds(my_books)
-                a, b = res.sides
-                start = m.start.astimezone(PARIS)
+                sport = SPORTS.get(m.sport, m.sport)
                 row = {
-                    "Heure": f"{JOURS[start.weekday()]} {start:%d/%m %H:%M}",
-                    "Circuit": m.tour.upper(),
-                    "Match": f"{m.player_a} – {m.player_b}",
+                    "Heure": when(m.start),
+                    "Sport": f"Tennis {m.tour.upper()}" if m.sport == "tennis" else sport,
+                    "Match": m.label,
                     "Pari conseillé": (
-                        f"{res.pick.label} à {res.pick.offered_odds:.2f}" if res.pick else "—"
+                        f"{res.pick.label} à {res.pick.offered_odds:.2f} ({res.pick.bookmaker})" if res.pick else "—"
                     ),
                     "Mise": f"{res.stake:.2f} €" if res.pick else "",
-                    "Valeur A": pct(a.edge),
-                    "Valeur B": pct(b.edge),
-                    "Pinnacle": f"{m.reference.odds_a:.2f} / {m.reference.odds_b:.2f}",
-                    "Meilleure cote A": f"{best_a.odds_a:.2f} ({best_a.title})",
-                    "Meilleure cote B": f"{best_b.odds_b:.2f} ({best_b.title})",
-                    "Tournoi": m.tournament,
+                    "Valeurs": " / ".join(pct(sd.edge) for sd in res.sides),
+                    "Pinnacle": " / ".join(f"{m.reference.price(o):.2f}" for o in m.outcomes),
+                    "Meilleures cotes": " / ".join(f"{sd.offered_odds:.2f} ({sd.bookmaker})" for sd in res.sides),
+                    "Compétition": m.tournament,
                 }
-                if elo:
+                if elo and m.sport == "tennis":
                     ea, eb = match_player(m.player_a, known), match_player(m.player_b, known)
-                    row["Elo A"] = pct(elo.predict(ea, eb, m.surface), signed=False) if ea and eb else "n/d"
+                    row["Elo (1er joueur)"] = pct(elo.predict(ea, eb, m.surface), signed=False) if ea and eb else "n/d"
                 rows.append(row)
 
             n_value = sum(1 for r in rows if r["Pari conseillé"] != "—")
@@ -200,11 +239,59 @@ with tab_schedule:
                     f"{no_reference} match(s) ignoré(s) : pas de cote Pinnacle ou aucune cote chez vos bookmakers."
                 )
             st.caption(
-                "Les cotes bougent vite : vérifiez toujours la cote chez votre bookmaker avant de parier. "
-                "La colonne Elo n'apparaît que si des saisons sont chargées, à titre indicatif."
+                "Football : les valeurs se lisent dans l'ordre domicile / nul / extérieur. "
+                "Les cotes bougent vite : vérifiez toujours la cote chez votre bookmaker avant de parier."
             )
         elif remaining is not None:
-            st.info("Aucun match avec des cotes pour ce circuit pour le moment.")
+            st.info("Aucun match avec des cotes pour cette sélection pour le moment.")
+
+# --- Onglet : journal des opportunités -------------------------------------
+
+with tab_journal:
+    journal = journal_mod.load(JOURNAL_PATH)
+    if journal.empty:
+        st.info(
+            "Le journal est vide. Il se remplit avec la commande `python -m bango scan`, "
+            "lancée chaque jour automatiquement par GitHub Actions une fois le relevé activé (voir le README)."
+        )
+    else:
+        j_edge = st.slider("Compter les paris dont la valeur atteint au moins", 0.0, 0.10, 0.02, 0.005, format="%.3f")
+        counts = journal_mod.daily_counts(journal, j_edge)
+        first, last = journal["first_seen"].min(), journal["last_seen"].max()
+        days = max(1, (last.tz_convert(PARIS).date() - first.tz_convert(PARIS).date()).days + 1)
+        total = int(counts["total"].sum()) if not counts.empty else 0
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Période suivie", f"{days} jour(s)")
+        k2.metric("Paris à valeur repérés", total)
+        k3.metric("Moyenne par jour", f"{total / days:.1f}")
+        st.caption(f"Du {when(first)} au {when(last)}. Un seul pari compté par match.")
+        if not counts.empty:
+            per_sport = counts.drop(columns="total").sum().rename(index=SPORTS)
+            st.subheader("Par jour et par sport")
+            st.bar_chart(counts.drop(columns="total").rename(columns=SPORTS))
+            st.dataframe((per_sport / days).round(2).rename("Paris par jour").to_frame(), width="content")
+        st.subheader("Dernières opportunités")
+        recent = journal[journal["best_edge"] >= j_edge].sort_values("first_seen", ascending=False).head(50)
+        st.dataframe(
+            pd.DataFrame(
+                {
+                    "Repéré": recent["first_seen"].map(when),
+                    "Sport": recent["sport"].map(SPORTS),
+                    "Match": recent["match"],
+                    "Pari": recent["pick"],
+                    "Bookmaker": recent["bookmaker"],
+                    "Cote": recent["odds"],
+                    "Cote juste": recent["fair_odds"],
+                    "Meilleure valeur": recent["best_edge"].map(pct),
+                    "Vu": recent["seen"],
+                }
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        st.download_button(
+            "Télécharger le journal (CSV)", JOURNAL_PATH.read_bytes(), file_name="journal.csv", mime="text/csv"
+        )
 
 # --- Onglet 1 : analyse d'un match ------------------------------------------
 
