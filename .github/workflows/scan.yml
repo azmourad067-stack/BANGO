@@ -1,0 +1,56 @@
+# Relève chaque jour les cotes (tennis, football, basket) et enregistre les
+# paris à valeur dans data/journal.csv. Nécessite le secret ODDS_API_KEY
+# (Settings → Secrets and variables → Actions). Les tâches planifiées ne
+# tournent que sur la branche par défaut du dépôt.
+name: Relevé des cotes
+
+on:
+  schedule:
+    - cron: "37 9 * * *" # tous les jours vers 10 h 37 (heure de Paris en hiver)
+  workflow_dispatch: # lancement manuel depuis l'onglet Actions
+
+permissions:
+  contents: write
+
+concurrency:
+  group: releve-des-cotes
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    env:
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+    steps:
+      - name: Clé absente
+        if: env.ODDS_API_KEY == ''
+        run: echo "::notice::Ajoutez le secret ODDS_API_KEY pour activer le relevé quotidien."
+
+      - uses: actions/checkout@v4
+        if: env.ODDS_API_KEY != ''
+
+      - uses: actions/setup-python@v5
+        if: env.ODDS_API_KEY != ''
+        with:
+          python-version: "3.12"
+
+      - name: Installer BANGO
+        if: env.ODDS_API_KEY != ''
+        run: pip install .
+
+      - name: Relever les cotes
+        if: env.ODDS_API_KEY != ''
+        run: python -m bango scan --journal data/journal.csv
+
+      - name: Enregistrer le journal
+        if: env.ODDS_API_KEY != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/journal.csv
+          if git diff --cached --quiet; then
+            echo "Aucune nouvelle opportunité."
+          else
+            git commit -m "Relevé des cotes du $(date -u +%F)"
+            git push
+          fi
