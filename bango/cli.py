@@ -6,6 +6,7 @@ import argparse
 import math
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -17,7 +18,7 @@ from .odds import expected_value, fair_probabilities, kelly_fraction
 from .strategy import MODELS, StrategyConfig
 from .synthetic import generate
 from .value import assess_value
-from .schedule import DEFAULT_LEAGUES, FRENCH_BOOKS, SPORTS, OddsApiClient, OddsApiError
+from .schedule import DEFAULT_LEAGUES, FRENCH_BOOKS, SPORTS, OddsApiClient, OddsApiError, save_snapshot
 from . import journal as journal_mod
 
 LABELS = {
@@ -235,7 +236,10 @@ def cmd_scan(args) -> int:
     except OddsApiError as exc:
         raise ValueError(str(exc)) from exc
 
-    journal, new = journal_mod.record(matches, args.books, args.journal)
+    now = datetime.now(timezone.utc)
+    if args.snapshot:
+        save_snapshot(args.snapshot, client.raw_events, now, client.requests_remaining)
+    journal, new = journal_mod.record(matches, args.books, args.journal, now=now)
     print(f"{len(matches)} matchs analysés, {new} nouvelle(s) opportunité(s) ajoutée(s) à {args.journal}.")
     print_coverage(matches, args.books)
     if client.requests_remaining is not None:
@@ -315,6 +319,7 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--leagues", nargs="+", default=list(DEFAULT_LEAGUES), help="Ligues de football et de basket")
     sc.add_argument("--books", nargs="+", default=list(FRENCH_BOOKS), help="Vos bookmakers")
     sc.add_argument("--journal", default="data/journal.csv")
+    sc.add_argument("--snapshot", default="data/latest.json", help="Relevé complet relu par l'application")
     sc.add_argument("--min-edge", type=float, default=0.02)
     sc.add_argument("--bankroll", type=float, default=1000.0)
     sc.set_defaults(func=cmd_scan)

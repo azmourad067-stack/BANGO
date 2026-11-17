@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -14,7 +15,15 @@ from bango.backtest import run_backtest
 from bango.data import normalize
 from bango.elo import SurfaceElo
 from bango import journal as journal_mod
-from bango.schedule import DEFAULT_LEAGUES, SPORTS, OddsApiClient, OddsApiError, UpcomingMatch, match_player
+from bango.schedule import (
+    DEFAULT_LEAGUES,
+    SPORTS,
+    OddsApiClient,
+    OddsApiError,
+    UpcomingMatch,
+    load_snapshot,
+    match_player,
+)
 from bango.strategy import StrategyConfig
 from bango.value import assess_value
 
@@ -114,6 +123,7 @@ tab_schedule, tab_journal, tab_value, tab_backtest, tab_elo = st.tabs(
 PARIS = ZoneInfo("Europe/Paris")
 JOURS = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
 JOURNAL_PATH = Path(__file__).resolve().parent / "data" / "journal.csv"
+SNAPSHOT_PATH = Path(os.environ.get("BANGO_SNAPSHOT", Path(__file__).resolve().parent / "data" / "latest.json"))
 
 
 def when(dt) -> str:
@@ -121,129 +131,157 @@ def when(dt) -> str:
     return f"{JOURS[local.weekday()]} {local:%d/%m %H:%M}"
 
 
+@st.cache_data(show_spinner=False)
+def read_snapshot(path: str, mtime: float):
+    return load_snapshot(path)  # ``mtime`` sert seulement à relire le fichier quand il change
+
+
 with tab_schedule:
-    api_key = configured_api_key()
-    if not api_key:
-        st.info(
-            "Le programme des matchs et les cotes viennent de **The Odds API** (offre gratuite d'environ "
-            "500 requêtes par mois). Créez une clé sur https://the-odds-api.com, puis ajoutez-la dans les "
-            "secrets de l'application sous le nom `ODDS_API_KEY`, ou collez-la ci-dessous pour cette session."
+    snapshot = read_snapshot(str(SNAPSHOT_PATH), SNAPSHOT_PATH.stat().st_mtime) if SNAPSHOT_PATH.exists() else None
+    live = st.session_state.get("programme")
+
+    c1, c2 = st.columns([1, 1])
+    sports = c1.multiselect("Sports", list(SPORTS), default=list(SPORTS), format_func=SPORTS.get)
+    tour = c2.radio(
+        "Tennis",
+        [None, "atp", "wta"],
+        format_func=lambda t: "ATP + WTA" if t is None else t.upper(),
+        horizontal=True,
+        disabled="tennis" not in sports,
+    )
+
+    with st.expander("Actualiser les cotes maintenant (consomme des crédits)", expanded=snapshot is None):
+        api_key = configured_api_key()
+        if not api_key:
+            st.info(
+                "Le programme des matchs et les cotes viennent de **The Odds API** (offre gratuite d'environ "
+                "500 requêtes par mois). Créez une clé sur https://the-odds-api.com, puis ajoutez-la dans les "
+                "secrets de l'application sous le nom `ODDS_API_KEY`, ou collez-la ci-dessous pour cette session."
+            )
+            api_key = st.text_input("Clé The Odds API", type="password")
+        if api_key:
+            try:
+                comps = fetch_competitions(api_key)  # appel gratuit
+            except OddsApiError as exc:
+                st.error(str(exc))
+                comps = []
+            except Exception as exc:  # réseau indisponible, réponse inattendue
+                st.error(f"Impossible de joindre The Odds API : {exc}")
+                comps = []
+            if comps:
+                leagues_available = {c["key"]: c["title"] for c in comps if c["sport"] in ("football", "basket")}
+                leagues = st.multiselect(
+                    "Ligues de football et de basket",
+                    sorted(leagues_available, key=lambda k: (not k.startswith("soccer"), leagues_available[k])),
+                    default=[k for k in DEFAULT_LEAGUES if k in leagues_available],
+                    format_func=leagues_available.get,
+                    help="Chaque ligue coûte 1 requête par actualisation.",
+                )
+                chosen = [
+                    c["key"]
+                    for c in comps
+                    if c["sport"] in sports
+                    and (
+                        (c["sport"] == "tennis" and (tour is None or c["key"].startswith(f"tennis_{tour}")))
+                        or c["key"] in leagues
+                    )
+                ]
+                c3, c4 = st.columns([1, 3])
+                if c3.button(f"Actualiser ({len(chosen)} crédits)", type="primary", disabled=not chosen):
+                    with st.spinner("Récupération des cotes…"):
+                        try:
+                            fetched, left = fetch_events(api_key, tuple(chosen))
+                            live = st.session_state["programme"] = (fetched, left, datetime.now(timezone.utc))
+                        except OddsApiError as exc:
+                            st.error(str(exc))
+                        except Exception as exc:
+                            st.error(f"Impossible de joindre The Odds API : {exc}")
+                c4.caption(
+                    f"{len(chosen)} compétition(s) sélectionnée(s), 1 crédit chacune. "
+                    "Inutile de cliquer pour consulter les cotes du dernier relevé automatique."
+                )
+
+    if live:
+        upcoming, remaining, loaded_at = live
+        st.caption(f"Cotes actualisées manuellement le {when(loaded_at)}.")
+    elif snapshot:
+        upcoming, loaded_at, remaining = snapshot
+        st.caption(
+            f"Cotes du dernier relevé automatique, le {when(loaded_at)} (relevés vers 10 h 37 et 17 h 53). "
+            "Les consulter ne consomme aucun crédit."
         )
-        api_key = st.text_input("Clé The Odds API", type="password")
+    else:
+        upcoming, remaining = [], None
+    now = datetime.now(timezone.utc)
+    upcoming = [
+        m
+        for m in upcoming
+        if m.start > now  # un match commencé ne se joue plus avant le coup d'envoi
+        and m.sport in sports
+        and (m.sport != "tennis" or tour is None or m.tour == tour)
+    ]
+    if remaining is not None:
+        st.caption(f"Requêtes restantes ce mois-ci : {remaining}")
 
-    if api_key:
-        try:
-            comps = fetch_competitions(api_key)
-        except OddsApiError as exc:
-            st.error(str(exc))
-            comps = []
-        except Exception as exc:  # réseau indisponible, réponse inattendue
-            st.error(f"Impossible de joindre The Odds API : {exc}")
-            comps = []
+    if upcoming:
+        all_books = {k: b.title for m in upcoming for k, b in m.books.items() if k != "pinnacle"}
+        c5, c6, c7 = st.columns([2, 1, 1])
+        my_books = c5.multiselect(
+            "Mes bookmakers",
+            sorted(all_books),
+            default=sorted(all_books),
+            format_func=lambda k: all_books[k],
+            help="Pour chaque issue, la meilleure cote est cherchée parmi ces bookmakers.",
+        )
+        sched_edge = c6.slider("Valeur minimale", 0.0, 0.10, 0.02, 0.005, format="%.3f", key="sched_edge")
+        sched_bankroll = c7.number_input("Bankroll (€)", min_value=1.0, value=1000.0, step=50.0, key="sched_bk")
+        only_value = st.toggle("Afficher seulement les paris à valeur", value=False)
 
-        if comps:
-            c1, c2 = st.columns([1, 1])
-            sports = c1.multiselect("Sports", list(SPORTS), default=list(SPORTS), format_func=SPORTS.get)
-            tour = c2.radio(
-                "Tennis",
-                [None, "atp", "wta"],
-                format_func=lambda t: "ATP + WTA" if t is None else t.upper(),
-                horizontal=True,
-                disabled="tennis" not in sports,
-            )
-            leagues_available = {c["key"]: c["title"] for c in comps if c["sport"] in ("football", "basket")}
-            leagues = st.multiselect(
-                "Ligues de football et de basket",
-                sorted(leagues_available, key=lambda k: (not k.startswith("soccer"), leagues_available[k])),
-                default=[k for k in DEFAULT_LEAGUES if k in leagues_available],
-                format_func=leagues_available.get,
-                help="Chaque ligue coûte 1 requête par actualisation.",
-            )
-            chosen = [
-                c["key"]
-                for c in comps
-                if c["sport"] in sports
-                and (
-                    (c["sport"] == "tennis" and (tour is None or c["key"].startswith(f"tennis_{tour}")))
-                    or c["key"] in leagues
-                )
-            ]
-            c3, c4 = st.columns([1, 3])
-            if c3.button("Charger les cotes", type="primary", disabled=not chosen):
-                with st.spinner("Récupération des cotes…"):
-                    try:
-                        st.session_state["programme"] = fetch_events(api_key, tuple(chosen))
-                    except OddsApiError as exc:
-                        st.error(str(exc))
-                    except Exception as exc:
-                        st.error(f"Impossible de joindre The Odds API : {exc}")
-            c4.caption(
-                f"{len(chosen)} compétition(s) sélectionnée(s) : coût de {len(chosen)} requête(s) par chargement."
-            )
+        elo = build_elo(matches, f"{len(matches)}-{matches['date'].max()}") if matches is not None else None
+        known = [n for n, _, m in elo.top(100_000) if m >= 10] if elo else []
 
-        upcoming, remaining = st.session_state.get("programme", ([], None))
-        if remaining is not None:
-            st.caption(f"Requêtes restantes ce mois-ci : {remaining}")
+        rows = []
+        no_reference = 0
+        for m in upcoming:
+            res = m.assess(my_books, min_edge=sched_edge, bankroll=sched_bankroll)
+            if res is None:
+                no_reference += 1
+                continue
+            if only_value and not res.pick:
+                continue
+            sport = SPORTS.get(m.sport, m.sport)
+            row = {
+                "Heure": when(m.start),
+                "Sport": f"Tennis {m.tour.upper()}" if m.sport == "tennis" else sport,
+                "Match": m.label,
+                "Pari conseillé": (
+                    f"{res.pick.label} à {res.pick.offered_odds:.2f} ({res.pick.bookmaker})" if res.pick else "—"
+                ),
+                "Mise": f"{res.stake:.2f} €" if res.pick else "",
+                "Valeurs": " / ".join(pct(sd.edge) for sd in res.sides),
+                "Pinnacle": " / ".join(f"{m.reference.price(o):.2f}" for o in m.outcomes),
+                "Meilleures cotes": " / ".join(f"{sd.offered_odds:.2f} ({sd.bookmaker})" for sd in res.sides),
+                "Compétition": m.tournament,
+            }
+            if elo and m.sport == "tennis":
+                ea, eb = match_player(m.player_a, known), match_player(m.player_b, known)
+                row["Elo (1er joueur)"] = pct(elo.predict(ea, eb, m.surface), signed=False) if ea and eb else "n/d"
+            rows.append(row)
 
-        if upcoming:
-            all_books = {k: b.title for m in upcoming for k, b in m.books.items() if k != "pinnacle"}
-            c5, c6, c7 = st.columns([2, 1, 1])
-            my_books = c5.multiselect(
-                "Mes bookmakers",
-                sorted(all_books),
-                default=sorted(all_books),
-                format_func=lambda k: all_books[k],
-                help="Pour chaque issue, la meilleure cote est cherchée parmi ces bookmakers.",
-            )
-            sched_edge = c6.slider("Valeur minimale", 0.0, 0.10, 0.02, 0.005, format="%.3f", key="sched_edge")
-            sched_bankroll = c7.number_input("Bankroll (€)", min_value=1.0, value=1000.0, step=50.0, key="sched_bk")
-            only_value = st.toggle("Afficher seulement les paris à valeur", value=False)
-
-            elo = build_elo(matches, f"{len(matches)}-{matches['date'].max()}") if matches is not None else None
-            known = [n for n, _, m in elo.top(100_000) if m >= 10] if elo else []
-
-            rows = []
-            no_reference = 0
-            for m in upcoming:
-                res = m.assess(my_books, min_edge=sched_edge, bankroll=sched_bankroll)
-                if res is None:
-                    no_reference += 1
-                    continue
-                if only_value and not res.pick:
-                    continue
-                sport = SPORTS.get(m.sport, m.sport)
-                row = {
-                    "Heure": when(m.start),
-                    "Sport": f"Tennis {m.tour.upper()}" if m.sport == "tennis" else sport,
-                    "Match": m.label,
-                    "Pari conseillé": (
-                        f"{res.pick.label} à {res.pick.offered_odds:.2f} ({res.pick.bookmaker})" if res.pick else "—"
-                    ),
-                    "Mise": f"{res.stake:.2f} €" if res.pick else "",
-                    "Valeurs": " / ".join(pct(sd.edge) for sd in res.sides),
-                    "Pinnacle": " / ".join(f"{m.reference.price(o):.2f}" for o in m.outcomes),
-                    "Meilleures cotes": " / ".join(f"{sd.offered_odds:.2f} ({sd.bookmaker})" for sd in res.sides),
-                    "Compétition": m.tournament,
-                }
-                if elo and m.sport == "tennis":
-                    ea, eb = match_player(m.player_a, known), match_player(m.player_b, known)
-                    row["Elo (1er joueur)"] = pct(elo.predict(ea, eb, m.surface), signed=False) if ea and eb else "n/d"
-                rows.append(row)
-
-            n_value = sum(1 for r in rows if r["Pari conseillé"] != "—")
-            st.markdown(f"**{len(rows)} matchs analysés, {n_value} pari(s) à valeur.**")
-            if rows:
-                st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
-            if no_reference:
-                st.caption(
-                    f"{no_reference} match(s) ignoré(s) : pas de cote Pinnacle ou aucune cote chez vos bookmakers."
-                )
+        n_value = sum(1 for r in rows if r["Pari conseillé"] != "—")
+        st.markdown(f"**{len(rows)} matchs analysés, {n_value} pari(s) à valeur.**")
+        if rows:
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        if no_reference:
             st.caption(
-                "Football : les valeurs se lisent dans l'ordre domicile / nul / extérieur. "
-                "Les cotes bougent vite : vérifiez toujours la cote chez votre bookmaker avant de parier."
+                f"{no_reference} match(s) ignoré(s) : pas de cote Pinnacle ou aucune cote chez vos bookmakers."
             )
-        elif remaining is not None:
-            st.info("Aucun match avec des cotes pour cette sélection pour le moment.")
+        st.caption(
+            "Football : les valeurs se lisent dans l'ordre domicile / nul / extérieur. "
+            "Les cotes bougent vite : vérifiez toujours la cote chez votre bookmaker avant de parier."
+        )
+    elif live or snapshot:
+        st.info("Aucun match avec des cotes pour cette sélection pour le moment.")
 
 # --- Onglet : journal des opportunités -------------------------------------
 

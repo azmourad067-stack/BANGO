@@ -1,5 +1,6 @@
-# Relève chaque jour les cotes (tennis, football, basket) et enregistre les
-# paris à valeur dans data/journal.csv. Nécessite le secret ODDS_API_KEY
+# Relève deux fois par jour les cotes (tennis, football, basket), enregistre les
+# paris à valeur dans data/journal.csv et le relevé complet dans
+# data/latest.json, que l'application affiche sans consommer de requête. Nécessite le secret ODDS_API_KEY
 # (Settings → Secrets and variables → Actions). Les tâches planifiées ne
 # tournent que sur la branche par défaut du dépôt.
 name: Relevé des cotes
@@ -7,6 +8,7 @@ name: Relevé des cotes
 on:
   schedule:
     - cron: "37 9 * * *" # tous les jours vers 10 h 37 (heure de Paris en hiver)
+    - cron: "53 16 * * *" # et vers 17 h 53, avant les matchs du soir
   workflow_dispatch: # lancement manuel depuis l'onglet Actions
 
 permissions:
@@ -40,17 +42,17 @@ jobs:
 
       - name: Relever les cotes
         if: env.ODDS_API_KEY != ''
-        run: python -m bango scan --journal data/journal.csv
+        run: python -m bango scan --journal data/journal.csv --snapshot data/latest.json
 
       - name: Enregistrer le journal
         if: env.ODDS_API_KEY != ''
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/journal.csv
+          git add data/journal.csv data/latest.json
           if git diff --cached --quiet; then
-            echo "Aucune nouvelle opportunité."
+            echo "Rien de nouveau à enregistrer."
           else
-            git commit -m "Relevé des cotes du $(date -u +%F)"
+            git commit -m "Relevé des cotes du $(TZ=Europe/Paris date '+%F %H:%M')"
             git push
           fi
