@@ -53,7 +53,7 @@ def build_elo(_matches: pd.DataFrame, key: str) -> SurfaceElo:
 
 
 @st.cache_data(ttl=600, show_spinner="Récupération du programme et des cotes…")
-def fetch_schedule(api_key: str, tour: str) -> tuple[list[UpcomingMatch], str | None]:
+def fetch_schedule(api_key: str, tour: str | None) -> tuple[list[UpcomingMatch], str | None]:
     client = OddsApiClient(api_key)
     matches = client.upcoming_matches(tour=tour, regions="eu,fr")
     return matches, client.requests_remaining
@@ -76,7 +76,7 @@ def pct(x: float, signed: bool = True) -> str:
 with st.sidebar:
     st.header("Données historiques")
     st.caption(
-        "Fichiers de saison ATP au format tennis-data.co.uk (.xlsx). "
+        "Fichiers de saison ATP et/ou WTA au format tennis-data.co.uk (.xlsx). "
         "Nécessaires pour le backtest et le classement Elo, pas pour l'analyse d'un match."
     )
     uploads = st.file_uploader("Saisons", type=["xlsx", "xls", "csv"], accept_multiple_files=True)
@@ -85,7 +85,10 @@ with st.sidebar:
         try:
             matches = load_files(tuple((f.name, f.getvalue()) for f in uploads))
             count = f"{len(matches):,}".replace(",", " ")
-            st.success(f"{count} matchs, du {matches['date'].min():%d/%m/%Y} au {matches['date'].max():%d/%m/%Y}")
+            per_tour = " · ".join(f"{t.upper()} {n:,}".replace(",", " ") for t, n in matches["tour"].value_counts().items())
+            st.success(
+                f"{count} matchs ({per_tour}), du {matches['date'].min():%d/%m/%Y} au {matches['date'].max():%d/%m/%Y}"
+            )
         except ValueError as exc:
             st.error(f"Fichier illisible : {exc}")
     st.divider()
@@ -118,7 +121,13 @@ with tab_schedule:
 
     if api_key:
         c1, c2, c3 = st.columns([1, 1, 2])
-        tour = c1.radio("Circuit", ["atp", "wta"], format_func=str.upper, horizontal=True)
+        tour = c1.radio(
+            "Circuit",
+            [None, "atp", "wta"],
+            format_func=lambda t: "ATP + WTA" if t is None else t.upper(),
+            horizontal=True,
+            help="Les deux circuits consomment environ deux fois plus de requêtes.",
+        )
         if c2.button("Actualiser les cotes", help="Les cotes sont gardées 10 minutes pour économiser votre quota."):
             fetch_schedule.clear()
         try:
@@ -164,6 +173,7 @@ with tab_schedule:
                 start = m.start.astimezone(PARIS)
                 row = {
                     "Heure": f"{JOURS[start.weekday()]} {start:%d/%m %H:%M}",
+                    "Circuit": m.tour.upper(),
                     "Match": f"{m.player_a} – {m.player_b}",
                     "Pari conseillé": (
                         f"{res.pick.label} à {res.pick.offered_odds:.2f}" if res.pick else "—"
@@ -194,7 +204,7 @@ with tab_schedule:
                 "La colonne Elo n'apparaît que si des saisons sont chargées, à titre indicatif."
             )
         elif remaining is not None:
-            st.info("Aucun match ATP/WTA avec des cotes pour le moment.")
+            st.info("Aucun match avec des cotes pour ce circuit pour le moment.")
 
 # --- Onglet 1 : analyse d'un match ------------------------------------------
 
@@ -258,7 +268,16 @@ with tab_backtest:
     if matches is None:
         st.info("Ajoutez au moins deux saisons dans la barre latérale pour lancer un backtest.")
     else:
+        tours_loaded = sorted(matches["tour"].unique())
         with st.form("backtest"):
+            bt_tour = None
+            if len(tours_loaded) > 1:
+                bt_tour = st.radio(
+                    "Circuit",
+                    [None, *tours_loaded],
+                    format_func=lambda t: "ATP + WTA" if t is None else t.upper(),
+                    horizontal=True,
+                )
             c1, c2, c3 = st.columns(3)
             model = c1.selectbox("Méthode", list(MODEL_LABELS), format_func=MODEL_LABELS.get)
             price = c2.selectbox("Cote jouée", list(PRICE_LABELS), format_func=PRICE_LABELS.get)
@@ -290,7 +309,8 @@ with tab_backtest:
                 staking=staking,
             )
             with st.spinner("Backtest en cours…"):
-                result = run_backtest(matches, cfg, bet_from=pd.Timestamp(bet_from))
+                bt_matches = matches if bt_tour is None else matches[matches["tour"] == bt_tour].reset_index(drop=True)
+                result = run_backtest(bt_matches, cfg, bet_from=pd.Timestamp(bet_from))
             s = result.summary
 
             if not s["paris"]:
@@ -342,20 +362,25 @@ with tab_elo:
         key = f"{len(matches)}-{matches['date'].max()}"
         elo = build_elo(matches, key)
         st.warning(
-            "Sur 2021-2025, l'Elo est nettement moins précis que Pinnacle : "
+            "Sur l'ATP 2021-2025, l'Elo est nettement moins précis que Pinnacle : "
             "à utiliser comme repère, pas pour décider d'un pari."
         )
+        tour_players = {t: set(matches.loc[matches["tour"] == t, "winner"]) | set(matches.loc[matches["tour"] == t, "loser"])
+                        for t in matches["tour"].unique()}
         c1, c2 = st.columns([1, 2])
         with c1:
+            elo_tour = st.radio("Circuit", sorted(tour_players), format_func=str.upper, horizontal=True, key="elo_tour")
             surface = st.selectbox("Surface", [None, *SURFACES], format_func=lambda s: "Toutes" if s is None else SURFACE_LABELS[s])
             top = st.slider("Nombre de joueurs", 10, 100, 25, 5)
-        ranking = pd.DataFrame(elo.top(top, surface), columns=["Joueur", "Note", "Matchs"])
+        in_tour = [r for r in elo.top(100_000, surface) if r[0] in tour_players[elo_tour]]
+        ranking = pd.DataFrame(in_tour[:top], columns=["Joueur", "Note", "Matchs"])
         ranking.index = range(1, len(ranking) + 1)
         ranking["Note"] = ranking["Note"].round(0).astype(int)
         c2.dataframe(ranking, width="stretch")
 
         st.subheader("Face-à-face")
-        players = [n for n, _, m in elo.top(10_000) if m >= 10]  # triés par note : les favoris en premier
+        # Triés par note : les favoris en premier. Un face-à-face se joue dans un seul circuit.
+        players = [n for n, _, m in elo.top(100_000) if m >= 10 and n in tour_players[elo_tour]]
         if len(players) >= 2:
             f1, f2, f3, f4 = st.columns(4)
             pa = f1.selectbox("Joueur A", players, index=0)

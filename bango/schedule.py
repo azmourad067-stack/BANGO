@@ -48,6 +48,10 @@ class UpcomingMatch:
     books: dict[str, BookOdds] = field(default_factory=dict)
 
     @property
+    def tour(self) -> str:
+        return "wta" if self.sport_key.startswith("tennis_wta") else "atp"
+
+    @property
     def surface(self) -> str:
         return guess_surface(self.tournament)
 
@@ -99,8 +103,11 @@ class OddsApiClient:
             raise OddsApiError(f"Erreur The Odds API ({resp.status_code}) : {resp.text[:200]}")
         return resp.json()
 
-    def tennis_tournaments(self, tour: str | None = "atp") -> list[dict]:
-        """Tournois de tennis en cours ou à venir proposés par l'API (appel gratuit)."""
+    def tennis_tournaments(self, tour: str | None = None) -> list[dict]:
+        """Tournois de tennis en cours ou à venir proposés par l'API (appel gratuit).
+
+        ``tour`` : "atp", "wta", ou None pour les deux circuits.
+        """
         sports = self._get("/sports")
         out = [s for s in sports if s.get("group") == "Tennis" and s.get("active")]
         if tour:
@@ -110,7 +117,7 @@ class OddsApiClient:
     def odds(self, sport_key: str, regions: str = "eu") -> list[dict]:
         return self._get(f"/sports/{sport_key}/odds", regions=regions, markets="h2h", oddsFormat="decimal")
 
-    def upcoming_matches(self, tour: str | None = "atp", regions: str = "eu") -> list[UpcomingMatch]:
+    def upcoming_matches(self, tour: str | None = None, regions: str = "eu") -> list[UpcomingMatch]:
         matches: list[UpcomingMatch] = []
         for sport in self.tennis_tournaments(tour):
             matches.extend(parse_events(self.odds(sport["key"], regions)))

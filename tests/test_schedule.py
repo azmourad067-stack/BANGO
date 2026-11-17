@@ -87,7 +87,7 @@ def test_client_fetches_atp_tournaments_then_odds():
     ]
     session = _Session([_Resp(200, sports), _Resp(200, EVENTS, {"x-requests-remaining": "497"})])
     client = OddsApiClient("cle", session=session)
-    matches = client.upcoming_matches()
+    matches = client.upcoming_matches(tour="atp")
     assert [m.id for m in matches] == ["e2", "e1"]  # triés par horaire
     assert session.calls[1][0].endswith("/sports/tennis_atp_paris_masters/odds")
     assert session.calls[1][1]["markets"] == "h2h" and session.calls[1][1]["apiKey"] == "cle"
@@ -100,3 +100,16 @@ def test_client_errors_are_explicit():
     client = OddsApiClient("mauvaise", session=_Session([_Resp(401, {"message": "invalid"})]))
     with pytest.raises(OddsApiError, match="Clé refusée"):
         client.tennis_tournaments()
+
+
+def test_client_fetches_both_tours_by_default():
+    sports = [
+        {"key": "tennis_atp_paris_masters", "group": "Tennis", "active": True},
+        {"key": "tennis_wta_finals", "group": "Tennis", "active": True},
+    ]
+    wta_event = dict(EVENTS[0], id="w1", sport_key="tennis_wta_finals", sport_title="WTA Finals",
+                     home_team="Iga Swiatek", away_team="Coco Gauff", bookmakers=[])
+    session = _Session([_Resp(200, sports), _Resp(200, EVENTS), _Resp(200, [wta_event])])
+    matches = OddsApiClient("cle", session=session).upcoming_matches()
+    assert {m.tour for m in matches} == {"atp", "wta"}
+    assert len(session.calls) == 3

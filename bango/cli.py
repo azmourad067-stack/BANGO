@@ -91,6 +91,10 @@ def _strategy_from(args) -> StrategyConfig:
 
 def cmd_backtest(args) -> int:
     matches = load_matches(args.files)
+    if args.tour:
+        matches = matches[matches["tour"] == args.tour].reset_index(drop=True)
+        if matches.empty:
+            raise ValueError(f"Aucun match {args.tour.upper()} dans les fichiers fournis.")
     result = run_backtest(matches, _strategy_from(args), bet_from=args.bet_from, initial_bankroll=args.bankroll)
     print(f"{len(matches)} matchs chargés, du {matches['date'].min():%d/%m/%Y} au {matches['date'].max():%d/%m/%Y}.")
     print_result(result, f"Backtest modèle « {args.model} », cotes {args.price} ×{args.haircut}")
@@ -209,6 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     bt.add_argument("--bankroll", type=float, default=1000.0)
     bt.add_argument("--bet-from", default=None, help="Date du premier pari (AAAA-MM-JJ)")
     bt.add_argument("--export", default=None, help="Exporte le détail des paris en CSV")
+    bt.add_argument("--tour", choices=["atp", "wta"], help="Limite le backtest à un circuit")
     bt.set_defaults(func=cmd_backtest)
 
     demo = sub.add_parser("demo", help="Génère des données simulées et lance un backtest.")

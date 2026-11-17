@@ -29,7 +29,7 @@ pip install -e ".[dev]"
 
 ## Données
 
-Téléchargez les saisons ATP (fichiers `.xlsx`) sur <http://www.tennis-data.co.uk/alldata.php> et placez-les dans `data/`. Prenez au moins 3 saisons : la première sert uniquement à construire les notes Elo.
+Téléchargez les saisons ATP et/ou WTA (fichiers `.xlsx`) sur <http://www.tennis-data.co.uk/alldata.php> et placez-les dans `data/`. Le circuit est reconnu automatiquement, et `--tour atp` ou `--tour wta` limite un backtest à l'un des deux. Prenez au moins 3 saisons : la première sert uniquement à construire les notes Elo.
 
 ## Utilisation
 

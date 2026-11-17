@@ -47,8 +47,11 @@ def normalize(raw: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Colonnes manquantes : {', '.join(missing)}")
 
+    # Les fichiers tennis-data commencent par une colonne « ATP » ou « WTA ».
+    tour = "wta" if "WTA" in raw.columns else "atp"
     df = pd.DataFrame(
         {
+            "tour": tour,
             "date": pd.to_datetime(raw["Date"], dayfirst=True, errors="coerce"),
             "tournament": raw.get("Tournament", pd.Series("", index=raw.index)).astype(str),
             "series": raw.get("Series", raw.get("Tier", pd.Series("", index=raw.index))).astype(str),

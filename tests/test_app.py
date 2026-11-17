@@ -25,12 +25,14 @@ def test_app_schedule_tab_lists_value_bets(monkeypatch):
     from .test_schedule import EVENTS
 
     monkeypatch.setenv("ODDS_API_KEY", "cle-de-test")
-    monkeypatch.setattr(OddsApiClient, "upcoming_matches", lambda self, tour="atp", regions="eu": parse_events(EVENTS))
+    wta = dict(EVENTS[0], id="w1", sport_key="tennis_wta_finals", sport_title="WTA Finals")
+    monkeypatch.setattr(OddsApiClient, "upcoming_matches", lambda self, tour=None, regions="eu": parse_events([*EVENTS, wta]))
     at = AppTest.from_file(APP, default_timeout=30).run()
     assert not at.exception
-    assert any("1 matchs analysés, 1 pari(s) à valeur" in m.value for m in at.markdown)
+    assert any("2 matchs analysés, 2 pari(s) à valeur" in m.value for m in at.markdown)
     table = at.dataframe[0].value
     assert table.iloc[0]["Pari conseillé"] == "Alex de Minaur à 5.10"
+    assert set(table["Circuit"]) == {"ATP", "WTA"}
     assert any("1 match(s) ignoré(s)" in c.value for c in at.caption)
 
 

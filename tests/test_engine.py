@@ -169,3 +169,21 @@ def test_cli_value(capsys):
     assert "Pari à valeur : joueur A à 1.95" in out
     assert main(["value", "--ref", "1.80", "2.10", "--odds", "1.75", "2.05"]) == 0
     assert "Pas de pari" in capsys.readouterr().out
+
+
+def test_normalize_detects_wta_files_and_cli_filters_tour(tmp_path, capsys):
+    atp = generate(n_players=30, n_matches=2500, seed=5)
+    wta = generate(n_players=30, n_matches=2500, seed=6).rename(columns={"Best of": "Tier"})
+    wta.insert(0, "WTA", 1)
+    wta["Winner"] = "F-" + wta["Winner"]
+    wta["Loser"] = "F-" + wta["Loser"]
+    assert set(normalize(wta)["tour"]) == {"wta"}
+    assert set(normalize(atp)["tour"]) == {"atp"}
+    assert normalize(wta)["best_of"].eq(3).all()
+
+    pa, pw = tmp_path / "atp.csv", tmp_path / "wta.csv"
+    atp.to_csv(pa, index=False)
+    wta.to_csv(pw, index=False)
+    assert main(["backtest", str(pa), str(pw), "--tour", "wta", "--bet-from", "2019-04-01"]) == 0
+    assert "2500 matchs chargés" in capsys.readouterr().out
+    assert main(["backtest", str(pa), "--tour", "wta"]) == 1
