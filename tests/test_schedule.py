@@ -5,7 +5,7 @@ import pytest
 from bango import journal
 from bango.cli import main
 from bango.odds import fair_probabilities_n
-from bango.schedule import OddsApiClient, OddsApiError, guess_surface, match_player, parse_events
+from bango.schedule import OddsApiClient, OddsApiError, guess_surface, load_snapshot, match_player, parse_events
 
 
 def _book(key, title, prices):
@@ -205,7 +205,9 @@ def test_cli_scan_writes_journal(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(OddsApiClient, "_get", lambda self, path, **p: responses["/sports"] if path == "/sports" else responses.get(path.split("/")[2], []))
     path = tmp_path / "journal.csv"
-    assert main(["scan", "--journal", str(path), "--sports", "tennis", "football", "--leagues", "soccer_france_ligue_one"]) == 0
+    snap = tmp_path / "latest.json"
+    args = ["--journal", str(path), "--snapshot", str(snap)]
+    assert main(["scan", *args, "--sports", "tennis", "football", "--leagues", "soccer_france_ligue_one"]) == 0
     out = capsys.readouterr().out
     assert "3 compétition(s)" in out  # 2 tournois de tennis + Ligue 1
     assert "Alex de Minaur à 5.10 chez Winamax (FR)" in out
@@ -213,5 +215,11 @@ def test_cli_scan_writes_journal(tmp_path, monkeypatch, capsys):
     assert "Les 5 cotes les plus proches d'une valeur" in out
     assert path.exists() and len(journal.load(path)) >= 2
 
+    # Le relevé complet se relit sans appel à l'API.
+    matches, scanned_at, _ = load_snapshot(snap)
+    assert {m.id for m in matches} == {"e1", "e2", "f1"}
+    assert scanned_at.tzinfo is not None
+    assert load_snapshot(tmp_path / "absent.json") is None
+
     monkeypatch.delenv("ODDS_API_KEY")
-    assert main(["scan", "--journal", str(path)]) == 1
+    assert main(["scan", *args]) == 1

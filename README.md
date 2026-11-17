@@ -99,9 +99,9 @@ Les fichiers de données ne sont pas dans le dépôt : chaque utilisateur charge
 
 ## Relevé quotidien automatique
 
-La commande `python -m bango scan` relève les cotes du jour, affiche les paris à valeur et les ajoute à `data/journal.csv` (tous les tournois de tennis en cours, plus les ligues de `DEFAULT_LEAGUES` : Ligue 1, Premier League, Liga, Serie A, Bundesliga, Ligue des champions, NBA, Euroligue). Coût : environ 10 à 14 requêtes par relevé, soit un relevé par jour avec la clé gratuite.
+La commande `python -m bango scan` relève les cotes du jour, affiche les paris à valeur, les ajoute à `data/journal.csv` et enregistre le relevé complet dans `data/latest.json` (tous les tournois de tennis en cours, plus les ligues de `DEFAULT_LEAGUES` : Ligue 1, Premier League, Liga, Serie A, Bundesliga, Ligue des champions, NBA, Euroligue). Coût : environ 9 à 14 requêtes par relevé. Avec la clé gratuite (500 requêtes par mois), deux relevés par jour tiennent tout juste : si le quota s'épuise, retirez la seconde ligne `cron` du workflow.
 
-Le fichier `.github/workflows/scan.yml` la lance chaque jour vers 10 h 37 (heure de Paris) et enregistre le journal dans le dépôt ; l'application Streamlit l'affiche dans l'onglet Journal. Pour l'activer :
+Le fichier `.github/workflows/scan.yml` la lance deux fois par jour, vers 10 h 37 et 17 h 53 (heure de Paris), et enregistre le journal et le relevé dans le dépôt. L'application Streamlit affiche directement le dernier relevé dans l'onglet Programme, **sans consommer de crédit** ; le bouton « Actualiser » ne sert qu'à forcer des cotes plus fraîches. Pour l'activer :
 
 1. Ajoutez votre clé dans GitHub : **Settings → Secrets and variables → Actions → New repository secret**, nom `ODDS_API_KEY`.
 2. Fusionnez ce travail dans la branche par défaut (`main`) : GitHub ne lance les tâches planifiées que depuis celle-ci.

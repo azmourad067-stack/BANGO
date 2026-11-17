@@ -10,10 +10,12 @@ par compétition à chaque actualisation. La liste des compétitions est gratuit
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -142,6 +144,7 @@ class OddsApiClient:
         self.base_url = base_url
         self.requests_remaining: str | None = None
         self.requests_used: str | None = None
+        self.raw_events: list[dict] = []  # réponses brutes, pour les enregistrer telles quelles
 
     def _get(self, path: str, **params: Any) -> Any:
         resp = self.session.get(f"{self.base_url}{path}", params={"apiKey": self.api_key, **params}, timeout=20)
@@ -185,7 +188,9 @@ class OddsApiClient:
     def upcoming(self, sport_keys: list[str]) -> list[UpcomingMatch]:
         matches: list[UpcomingMatch] = []
         for key in sport_keys:
-            matches.extend(parse_events(self.odds(key)))
+            events = self.odds(key)
+            self.raw_events.extend(events)
+            matches.extend(parse_events(events))
         return sorted(matches, key=lambda m: m.start)
 
     def upcoming_matches(self, tour: str | None = None, regions: str | None = None) -> list[UpcomingMatch]:
@@ -220,6 +225,29 @@ def parse_events(events: list[dict]) -> list[UpcomingMatch]:
         m.books = {k: bk for k, bk in m.books.items() if all(o in bk.prices for o in m.outcomes)}
         matches.append(m)
     return matches
+
+
+def save_snapshot(path: str | Path, events: list[dict], scanned_at: datetime, remaining: str | None = None) -> None:
+    """Enregistre un relevé complet pour l'afficher plus tard sans consommer de requête."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "scanned_at": scanned_at.astimezone(timezone.utc).isoformat(),
+        "requests_remaining": remaining,
+        "events": events,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+
+
+def load_snapshot(path: str | Path) -> tuple[list[UpcomingMatch], datetime, str | None] | None:
+    """Relit le dernier relevé enregistré, ou None s'il n'y en a pas."""
+    path = Path(path)
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text())
+    scanned_at = datetime.fromisoformat(payload["scanned_at"])
+    matches = sorted(parse_events(payload.get("events", [])), key=lambda m: m.start)
+    return matches, scanned_at, payload.get("requests_remaining")
 
 
 def guess_surface(tournament: str) -> str:
