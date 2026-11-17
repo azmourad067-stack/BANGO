@@ -26,10 +26,10 @@ jobs:
         if: env.ODDS_API_KEY == ''
         run: echo "::notice::Ajoutez le secret ODDS_API_KEY pour activer le relevé quotidien."
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: env.ODDS_API_KEY != ''
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: env.ODDS_API_KEY != ''
         with:
           python-version: "3.12"

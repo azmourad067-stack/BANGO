@@ -209,6 +209,8 @@ def test_cli_scan_writes_journal(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "3 compétition(s)" in out  # 2 tournois de tennis + Ligue 1
     assert "Alex de Minaur à 5.10 chez Winamax (FR)" in out
+    assert "Tennis       2 matchs,    1 avec Pinnacle,    1 comparables, meilleure valeur +7.9%" in out
+    assert "Les 5 cotes les plus proches d'une valeur" in out
     assert path.exists() and len(journal.load(path)) >= 2
 
     monkeypatch.delenv("ODDS_API_KEY")

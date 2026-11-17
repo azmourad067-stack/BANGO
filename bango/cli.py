@@ -200,6 +200,28 @@ def select_competitions(client: OddsApiClient, sports: list[str], leagues: list[
     return chosen
 
 
+def print_coverage(matches, books) -> None:
+    """Combien de matchs ont pu être comparés, et quelles cotes s'approchaient le plus d'une valeur."""
+    print("\nCouverture par sport :")
+    closest = []
+    for sport in sorted({m.sport for m in matches}):
+        group = [m for m in matches if m.sport == sport]
+        with_ref = [m for m in group if m.reference is not None]
+        compared = [(m, m.assess(books, min_edge=1.0)) for m in with_ref]
+        compared = [(m, r) for m, r in compared if r is not None]
+        best = max((sd.edge for _, r in compared for sd in r.sides), default=None)
+        best_txt = f", meilleure valeur {best:+.1%}" if best is not None else ""
+        print(
+            f"  {SPORTS.get(sport, sport):<9} {len(group):>4} matchs, {len(with_ref):>4} avec Pinnacle,"
+            f" {len(compared):>4} comparables{best_txt}"
+        )
+        closest += [(sd.edge, m, sd) for m, r in compared for sd in r.sides]
+    if closest:
+        print("\nLes 5 cotes les plus proches d'une valeur :")
+        for edge, m, sd in sorted(closest, key=lambda x: x[0], reverse=True)[:5]:
+            print(f"  {edge:+.1%}  {m.label} : {sd.label} à {sd.offered_odds:.2f} ({sd.bookmaker}), juste {sd.fair_odds:.2f}")
+
+
 def cmd_scan(args) -> int:
     """Relève les cotes, affiche les paris à valeur et les ajoute au journal."""
     key = os.environ.get("ODDS_API_KEY", "")
@@ -215,6 +237,7 @@ def cmd_scan(args) -> int:
 
     journal, new = journal_mod.record(matches, args.books, args.journal)
     print(f"{len(matches)} matchs analysés, {new} nouvelle(s) opportunité(s) ajoutée(s) à {args.journal}.")
+    print_coverage(matches, args.books)
     if client.requests_remaining is not None:
         print(f"Requêtes restantes ce mois-ci : {client.requests_remaining}")
 
