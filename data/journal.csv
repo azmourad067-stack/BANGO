@@ -1,2 +1,5 @@
 first_seen,last_seen,sport,competition,event_id,match,start,pick,bookmaker,odds,fair_odds,edge,best_edge,seen
 2026-11-22T17:21:38Z,2026-11-22T17:21:38Z,tennis,ATP Finals,61fd3eff03d345615f08909e038728e7,Alexander Zverev – Carlos Alcaraz,2026-11-22T17:10:00Z,Alexander Zverev,PMU (FR),2.95,2.838,0.0395,0.0395,1
+2026-11-22T22:10:17Z,2026-11-22T22:10:17Z,basket,NBA,90da1cde4144fac00d41f2c0db2cc921,Miami Heat – Oklahoma City Thunder,2026-11-22T23:10:00Z,Miami Heat,PMU (FR),1.48,1.355,0.092,0.092,1
+2026-11-22T22:10:17Z,2026-11-22T22:10:17Z,football,Ligue 1 - France,02ff879cf54f6d1fec2664efee0431db,Brest – Paris FC,2026-11-27T19:45:00Z,Match nul,Unibet (FR),3.5,3.49,0.0028,0.0028,1
+2026-11-22T22:10:17Z,2026-11-22T22:10:17Z,football,Serie A - Italy,7d32e6e9bbd769e7d505467971c4d7ca,Napoli – Lecce,2026-12-05T19:45:00Z,Napoli,Winamax (FR),1.37,1.366,0.0032,0.0032,1
