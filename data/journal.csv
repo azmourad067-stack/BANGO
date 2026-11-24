@@ -6,3 +6,4 @@ first_seen,last_seen,sport,competition,event_id,match,start,pick,bookmaker,odds,
 2026-11-23T21:38:39Z,2026-11-23T21:38:39Z,basket,Basketball Euroleague,0f9b0defd0a6c9603d7c70e7962bb628,FC Barcelona Bàsquet – Fenerbahce SK,2026-11-24T20:00:00Z,Fenerbahce SK,Unibet (FR),1.56,1.559,0.0006,0.0006,1
 2026-11-24T03:04:51Z,2026-11-24T03:04:51Z,basket,NBA,6caeb7cce7c8340fed588f3badd83fe0,New Orleans Pelicans – Phoenix Suns,2026-11-24T01:11:00Z,New Orleans Pelicans,PMU (FR),1.56,1.461,0.0678,0.0678,1
 2026-11-24T03:04:51Z,2026-11-24T03:04:51Z,basket,NBA,db2311c331296d3328d71b842167dea4,Houston Rockets – Los Angeles Clippers,2026-11-24T01:41:00Z,Houston Rockets,Unibet (FR),1.18,1.172,0.0072,0.0072,1
+2026-11-24T20:19:39Z,2026-11-24T20:19:39Z,football,UEFA Champions League,3fb5e4a792cf34a0459efcb79a11a785,Real Madrid – PSV Eindhoven,2026-11-24T20:00:00Z,Real Madrid,Winamax (FR),1.23,1.196,0.0286,0.0286,1
